@@ -13,6 +13,7 @@ import jakarta.persistence.EntityNotFoundException;
 import jakarta.transaction.Transactional;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validator;
+import org.apache.commons.lang3.EnumUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -306,97 +307,6 @@ public class ProjectService {
         return projectRepository.save(projetoEncontrado);
     }
 
-    /**
-     * Recupera uma lista de projetos com status CRIADO.
-     *
-     * @return Lista de ProjectDTOs representando projetos com status CRIADO.
-     */
-    public List<ProjectDTO> findToDoProjects() {
-        log.info("Recuperando projetos com status CRIADO");
-        return filterProjectsByStatus(StatusProjeto.CRIADO);
-    }
-
-    /**
-     * Recupera uma lista de projetos com status EM_ANDAMENTO.
-     *
-     * @return Lista de ProjectDTOs representando projetos com status EM_ANDAMENTO.
-     */
-    public List<ProjectDTO> findOngoingProjects() {
-        log.info("Recuperando projetos com status EM_ANDAMENTO");
-        return filterProjectsByStatus(StatusProjeto.EM_ANDAMENTO);
-    }
-
-    /**
-     * Recupera uma lista de projetos com status CONCLUIDO.
-     *
-     * @return Lista de ProjectDTOs representando projetos com status CONCLUIDO.
-     */
-    public List<ProjectDTO> findCompletedProjects() {
-        log.info("Recuperando projetos com status CONCLUIDO");
-        return filterProjectsByStatus(StatusProjeto.CONCLUIDO);
-    }
-
-    /**
-     * Recupera uma lista de projetos com status ATRASADO.
-     *
-     * @return Lista de ProjectDTOs representando projetos com status ATRASADO.
-     */
-    public List<ProjectDTO> findLateProjects() {
-        log.info("Recuperando projetos com status ATRASADO");
-        return filterProjectsByStatus(StatusProjeto.ATRASADO);
-    }
-
-    /**
-     * Recupera uma lista de projetos do usuário com status CRIADO.
-     *
-     * @param userId O ID do usuário para o qual recuperar projetos.
-     * @return Lista de ProjectDTOs representando projetos com status CRIADO associados ao usuário.
-     * @throws IllegalArgumentException     Se o ID do usuário fornecido for nulo.
-     * @throws EntityNotFoundException      Se o usuário não for encontrado.
-     */
-    public List<ProjectDTO> findUserToDoProjects(Long userId) {
-        log.info("Recuperando projetos do usuário com ID {} com status CRIADO", userId);
-        return filterUserProjectsByStatus(userId, StatusProjeto.CRIADO);
-    }
-
-    /**
-     * Recupera uma lista de projetos do usuário com status EM_ANDAMENTO.
-     *
-     * @param userId O ID do usuário para o qual recuperar projetos.
-     * @return Lista de ProjectDTOs representando projetos com status EM_ANDAMENTO associados ao usuário.
-     * @throws IllegalArgumentException     Se o ID do usuário fornecido for nulo.
-     * @throws EntityNotFoundException      Se o usuário não for encontrado.
-     */
-    public List<ProjectDTO> findUserOngoingProjects(Long userId) {
-        log.info("Recuperando projetos do usuário com ID {} com status EM_ANDAMENTO", userId);
-        return filterUserProjectsByStatus(userId, StatusProjeto.EM_ANDAMENTO);
-    }
-
-    /**
-     * Recupera uma lista de projetos do usuário com status CONCLUIDO.
-     *
-     * @param userId O ID do usuário para o qual recuperar projetos.
-     * @return Lista de ProjectDTOs representando projetos com status CONCLUIDO associados ao usuário.
-     * @throws IllegalArgumentException     Se o ID do usuário fornecido for nulo.
-     * @throws EntityNotFoundException      Se o usuário não for encontrado.
-     */
-    public List<ProjectDTO> findUserCompletedProjects(Long userId) {
-        log.info("Recuperando projetos do usuário com ID {} com status CONCLUIDO", userId);
-        return filterUserProjectsByStatus(userId, StatusProjeto.CONCLUIDO);
-    }
-
-    /**
-     * Recupera uma lista de projetos do usuário com status ATRASADO.
-     *
-     * @param userId O ID do usuário para o qual recuperar projetos.
-     * @return Lista de ProjectDTOs representando projetos com status ATRASADO associados ao usuário.
-     * @throws IllegalArgumentException     Se o ID do usuário fornecido for nulo.
-     * @throws EntityNotFoundException      Se o usuário não for encontrado.
-     */
-    public List<ProjectDTO> findUserLateProjects(Long userId) {
-        log.info("Recuperando projetos do usuário com ID {} com status ATRASADO", userId);
-        return filterUserProjectsByStatus(userId, StatusProjeto.ATRASADO);
-    }
 
     /**
      * Filtra todos os projetos por um status específico.
@@ -404,10 +314,13 @@ public class ProjectService {
      * @param status O status pelo qual filtrar os projetos.
      * @return Lista de ProjectDTOs representando projetos filtrados pelo status.
      */
-    private List<ProjectDTO> filterProjectsByStatus(StatusProjeto status) {
-        return projectRepository.findAll()
+    public List<ProjectDTO> findProjectsByStatus(StatusProjeto status) {
+        if(status == null || !EnumUtils.isValidEnum(StatusProjeto.class, status.name())){
+            log.info("Status inválido: {}", status);
+            throw new IllegalArgumentException("Statua inválido: " + status);
+        }
+        return projectRepository.findProjectsByStatus(status)
                 .stream()
-                .filter(p -> p.getStatus().equals(status))
                 .map(projectMapper::toDto)
                 .collect(Collectors.toList());
     }
@@ -421,24 +334,29 @@ public class ProjectService {
      * @throws IllegalArgumentException     Se o ID do usuário fornecido for nulo.
      * @throws EntityNotFoundException      Se o usuário não for encontrado.
      */
-    private List<ProjectDTO> filterUserProjectsByStatus(Long userId, StatusProjeto status) {
+    public List<ProjectDTO> findUserProjectsByStatus(Long userId, StatusProjeto status) {
         if (userId == null) {
+            log.info("Id de usuário não fornecido");
             throw new IllegalArgumentException("Id do usuário não fornecido");
         }
-            log.info("Recuperando projetos do usuário com ID {} com status {}", userId, status);
 
-            User usuarioEncontrado = userRepository.findById(userId)
-                    .orElseThrow(() -> {
+        if(status == null || !EnumUtils.isValidEnum(StatusProjeto.class, status.name())){
+            log.error("Status inválido: {}", status);
+            throw new IllegalArgumentException("Status inválido: " + status);
+        }
+
+        log.info("Recuperando projetos do usuário com ID {} com status {}", userId, status);
+
+        User usuarioEncontrado = userRepository.findById(userId)
+                .orElseThrow(() -> {
                         log.info("Usuário não encontrado.");
                         return new EntityNotFoundException("Usuário não encontrado");
                     });
 
-            List<ProjectDTO> projetosUsuario = findProjectsByUser(userId);
-
-            return projetosUsuario
-                    .stream()
-                    .filter(p -> p.getStatus().equals(status))
-                    .collect(Collectors.toList());
+        return projectRepository.findProjectsByUser_IdAndStatus(userId, status)
+                .stream()
+                .map(projectMapper::toDto)
+                .collect(Collectors.toList());
     }
 
 

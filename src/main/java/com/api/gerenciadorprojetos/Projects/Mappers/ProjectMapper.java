@@ -6,6 +6,11 @@ import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.Mappings;
 
+/**
+ * Mapper para converter entidades de Projeto em DTOs e vice-versa.
+ *
+ * @author victor.marcelo
+ */
 @Mapper
 public interface ProjectMapper {
 
@@ -24,5 +29,19 @@ public interface ProjectMapper {
             @Mapping(source = "membrosProjeto", target = "membrosProjeto")
     })
     ProjectDTO toDto(Project project);
+
+    @Mappings({
+            @Mapping(source = "id", target = "id"),
+            @Mapping(source = "nomeProjeto", target = "nomeProjeto"),
+            @Mapping(source = "descricao", target = "descricao"),
+            @Mapping(source = "dataInicio", target = "dataInicio"),
+            @Mapping(source = "dataTerminoPrevista", target = "dataTerminoPrevista"),
+            @Mapping(source = "status", target = "status"),
+            @Mapping(source = "gerenteProjeto", target = "gerenteProjeto"),
+            @Mapping(source = "orcamento", target = "orcamento"),
+            @Mapping(source = "prioridade", target = "prioridade"),
+            @Mapping(source = "membrosProjeto", target = "membrosProjeto")
+    })
+    Project toEntity(ProjectDTO projectDTO);
 }
 

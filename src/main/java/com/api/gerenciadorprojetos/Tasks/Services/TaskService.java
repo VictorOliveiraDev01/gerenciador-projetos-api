@@ -2,7 +2,9 @@ package com.api.gerenciadorprojetos.Tasks.Services;
 
 import com.api.gerenciadorprojetos.Exceptions.TaskValidationException;
 import com.api.gerenciadorprojetos.Exceptions.UnauthorizedException;
+import com.api.gerenciadorprojetos.Projects.DTO.ProjectDTO;
 import com.api.gerenciadorprojetos.Projects.Entities.Project;
+import com.api.gerenciadorprojetos.Projects.Enums.StatusProjeto;
 import com.api.gerenciadorprojetos.Projects.Repositories.ProjectRepository;
 import com.api.gerenciadorprojetos.Tasks.DTO.TaskDTO;
 import com.api.gerenciadorprojetos.Tasks.Entities.Task;
@@ -15,11 +17,13 @@ import jakarta.persistence.EntityNotFoundException;
 import jakarta.transaction.Transactional;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validator;
+import org.apache.commons.lang3.EnumUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
@@ -109,7 +113,7 @@ public class TaskService {
                 });
 
         if (!projetoAssociado.getGerenteProjeto().getId().equals(userId)) {
-            log.error("Usuário não autorizado para criar tarefas neste projeto.");
+            log.info("Usuário não autorizado para criar tarefas neste projeto.");
             throw new UnauthorizedException("Usuário não autorizado para criar tarefas neste projeto");
         }
 
@@ -356,6 +360,104 @@ public class TaskService {
     }
 
     /**
+     * Recupera as tarefas de projeto associadas a um usuário específico por um status específico.
+     *
+     * @param userId O ID do usuário para o qual recuperar projetos.
+     * @param projectId O ID do projeto a qual pertencem as tarefas.
+     * @param status O status pelo qual filtrar as tarefas de projeto do usuário.
+     * @return Lista de ProjectDTOs representando projetos filtrados pelo status associados ao usuário.
+     * @throws IllegalArgumentException     Se o ID do usuário fornecido for nulo.
+     * @throws EntityNotFoundException      Se o usuário não for encontrado.
+     */
+    public List<TaskDTO> findUserTasksByStatusAndProject(Long userId, Long projectId, StatusTarefa status) {
+        if (userId == null || projectId == null) {
+            log.error("IDs não fornecidos: IDs solicitados: ID de projeto e usuário");
+            throw new IllegalArgumentException("Ids não fornecidos: Ids solicitados: ID de projeto e usuário");
+        }
+
+        if (status == null || !EnumUtils.isValidEnum(StatusTarefa.class, status.name())) {
+            log.error("Status inválido: {}", status);
+            throw new IllegalArgumentException("Status inválido: " + status);
+        }
+
+        log.info("Recuperando tarefas do projeto com ID {}, do usuário com ID {}, com status {}", projectId, userId, status);
+
+        User usuarioEncontrado = userRepository.findById(userId)
+                .orElseThrow(() -> {
+                    log.info("Usuário não encontrado.");
+                    return new EntityNotFoundException("Usuário não encontrado");
+                });
+
+        Project projetoEncontrado = projectRepository.findById(projectId)
+                .orElseThrow(() ->{
+                    log.info("Projeto não encontrado");
+                    return new EntityNotFoundException("Projeto não encontrado");
+                });
+
+        return taskRepository.findUserTasksByStatusAndProject(userId, projectId, status)
+                .stream()
+                .map(taskMapper::toDto)
+                .collect(Collectors.toList());
+    }
+
+
+    /**
+     * Recupera uma lista de tarefas de projeto associadas a um usuário.
+     *
+     * @param userId O ID do usuário.
+     * @param projectId O ID do projeto.
+     * @return Lista de TasksDTO representando as tarefas de projeto associados ao usuário e ao projeto.
+     * @throws IllegalArgumentException     Se o ID do usuário fornecido for nulo.
+     * @throws EntityNotFoundException      Se o usuário não for encontrado.
+     */
+    public List<TaskDTO> findTasksByUserAndProject(Long userId, Long projectId) {
+        if (userId == null || projectId == null) {
+            log.error("IDs não fornecidos: IDs solicitados: ID de projeto e usuário");
+            throw new IllegalArgumentException("Ids não fornecidos: Ids solicitados: ID de projeto e usuário");
+        }
+
+        log.info("Recuperando tarefas de projeto associadas ao usuário com ID: {}", userId);
+
+        User usuarioEncontrado = userRepository.findById(userId)
+                .orElseThrow(() -> {
+                    log.info("Usuário não encontrado.");
+                    return new EntityNotFoundException("Usuário não encontrado");
+                });
+
+        return taskRepository.findByUserIdAndProjectId(userId, projectId)
+                .stream()
+                .map(taskMapper::toDto)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Deleta um projeto pelo seu ID.
+     *
+     * @param taskId O ID da tarefa a ser excluída.
+     * @throws IllegalArgumentException Se o ID da tarefa fornecido for nulo.
+     * @throws EntityNotFoundException Se a Tarefa não for encontrada para exclusão.
+     * @throws RuntimeException Se ocorrer um erro ao deletar a tarefa.
+     */
+    public void deleteTaskById(Long taskId) {
+        if (taskId == null) {
+            log.error("Id da tarefa não fornecido. Id: " + taskId);
+            throw new IllegalArgumentException("Id da tarefa não fornecido");
+        }
+
+        try {
+            taskRepository.findById(taskId)
+                    .ifPresentOrElse(
+                            project -> taskRepository.deleteById(taskId),
+                            () -> {
+                                log.info("Tarefa não encontrada para deletar");
+                                throw new EntityNotFoundException("Tarefa não encontrada");
+                            });
+        } catch (Exception ex) {
+            throw new RuntimeException("Erro ao deletar tarefa. Causa: " + ex.getMessage(), ex);
+        }
+    }
+
+    /**
      * Valida a conclusão de uma tarefa.
      *
      * @param task A tarefa a ser validada.
@@ -369,6 +471,27 @@ public class TaskService {
         if (!violations.isEmpty()) {
             log.info("Tarefa inválida. Motivos: {}", violations);
             throw new TaskValidationException("Erro de validação na tarefa. Motivos: {}", violations);
+        }
+    }
+
+    /**
+     * Atualiza automaticamente o status das tarefas de projeto atrasadas.
+     * Este método é chamado por um JOB todos os dias à 00:00h.
+     */
+    @Transactional
+    public void updateLateTaskStatus() {
+        log.info("Atualizando status das tarefas atrasadas. JOB executado todos os dias a 00:00h");
+
+        LocalDate currentDate = LocalDate.now();
+
+        List <Task> lateTasks = taskRepository.findAll()
+                .stream()
+                .filter(p -> p.getDataTerminoPrevista() != null && p.getDataTerminoPrevista().isBefore(currentDate))
+                .collect(Collectors.toList());
+
+        for (Task task : lateTasks) {
+            task.setStatus(StatusTarefa.ATRASADA);
+            taskRepository.save(task);
         }
     }
 

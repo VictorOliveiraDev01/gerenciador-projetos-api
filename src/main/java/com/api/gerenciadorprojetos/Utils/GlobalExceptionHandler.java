@@ -1,6 +1,7 @@
 package com.api.gerenciadorprojetos.Utils;
 
 import com.api.gerenciadorprojetos.Exceptions.ProjectValidationException;
+import com.api.gerenciadorprojetos.Exceptions.TaskValidationException;
 import com.api.gerenciadorprojetos.Exceptions.UnauthorizedException;
 import com.api.gerenciadorprojetos.Exceptions.UserValidationException;
 import jakarta.persistence.EntityNotFoundException;
@@ -18,6 +19,7 @@ import java.util.Map;
 
 /**
  * Classe que trata exceções globais para a API.
+ *
  * @author victor.marcelo
  */
 @ControllerAdvice
@@ -55,6 +57,12 @@ public class GlobalExceptionHandler {
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public ResponseEntity<Object> handleProjectValidationException(ProjectValidationException e) {
         return buildResponseEntity(HttpStatus.BAD_REQUEST, "Erro de validação do Projeto. Causa: " + e.getMessage());
+    }
+
+    @ExceptionHandler(TaskValidationException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ResponseEntity<Object> handleTaskValidationException(TaskValidationException e) {
+        return buildResponseEntity(HttpStatus.BAD_REQUEST, "Erro de validação da Tarefa de projeto. Causa: " + e.getMessage());
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

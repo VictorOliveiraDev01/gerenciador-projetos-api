@@ -9,6 +9,11 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 
+/**
+ * Entidade que representa um usuário.
+ *
+ * @author victor.marcelo
+ */
 @Entity
 @Data
 @AllArgsConstructor

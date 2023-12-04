@@ -8,6 +8,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Classe que representa a resposta padrão para as operações da API.
+ *
+ * @author victor.marcelo
+ *
+ * @param <T> Tipo de dado associado à resposta.
+ */
 @Data
 public class Response<T> {
 

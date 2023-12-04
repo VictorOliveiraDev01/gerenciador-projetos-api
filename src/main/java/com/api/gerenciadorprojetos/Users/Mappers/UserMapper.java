@@ -6,6 +6,11 @@ import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.Mappings;
 
+/**
+ * Mapper para converter entidades de usuário em DTOs e vice-versa.
+ *
+ * @author victor.marcelo
+ */
 @Mapper
 public interface UserMapper {
 
@@ -17,4 +22,11 @@ public interface UserMapper {
             @Mapping(source = "email", target = "email")
     })
     UserDTO toDto(User user);
+
+    @Mappings({
+            @Mapping(source = "id", target = "id"),
+            @Mapping(source = "nome", target = "nome"),
+            @Mapping(source = "email", target = "email")
+    })
+    User toEntity(UserDTO userDTO);
 }

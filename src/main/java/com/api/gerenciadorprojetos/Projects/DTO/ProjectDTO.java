@@ -6,6 +6,11 @@ import lombok.Data;
 import java.time.LocalDate;
 import java.util.List;
 
+/**
+ * DTO para representar dados de projetos.
+ *
+ * @author victor.marcelo
+ */
 @Data
 public class ProjectDTO {
     private Long id;

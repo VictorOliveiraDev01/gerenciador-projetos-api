@@ -7,6 +7,11 @@ import lombok.Data;
 import java.time.LocalDateTime;
 import java.util.List;
 
+/**
+ * DTO para representar dados de Tarefas de Projeto.
+ *
+ * @author victor.marcelo
+ */
 @Data
 public class TaskDTO {
     private Long id;

@@ -15,7 +15,11 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Set;
 
-
+/**
+ * Entidade que representa uma Tarefa de Projeto.
+ *
+ * @author victor.marcelo
+ */
 @Entity
 @Data
 @AllArgsConstructor

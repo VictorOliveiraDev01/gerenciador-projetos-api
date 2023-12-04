@@ -10,6 +10,8 @@ import com.api.gerenciadorprojetos.Users.Repositories.UserRepository;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validator;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -26,20 +28,15 @@ import java.util.stream.Collectors;
 @Service
 public class UserService {
 
+    private static final Logger log = LoggerFactory.getLogger(UserService.class);
+
     private final UserRepository userRepository;
     private final ProjectRepository projectRepository;
     private final UserMapper userMapper;
-    private final jakarta.validation.Validator validator;
+    private final Validator validator;
 
-    /**
-     * Construtor para UserService.
-     *
-     * @param userRepository O repositório para entidades de usuário.
-     * @param userMapper O mapper para converter entidades de usuário em DTOs.
-     * @param validator O validador para validar entidades de usuário.
-     */
     @Autowired
-    public UserService(UserRepository userRepository, ProjectRepository projectRepository, UserMapper userMapper, Validator validator){
+    public UserService(UserRepository userRepository, ProjectRepository projectRepository, UserMapper userMapper, Validator validator) {
         this.userRepository = userRepository;
         this.projectRepository = projectRepository;
         this.userMapper = userMapper;
@@ -52,6 +49,7 @@ public class UserService {
      * @return Lista de UserDTOs representando todos os usuários.
      */
     public List<UserDTO> findAllUsers() {
+        log.info("Recuperando todos os usuários.");
         return userRepository.findAll()
                 .stream()
                 .map(userMapper::toDto)
@@ -66,15 +64,22 @@ public class UserService {
      * @throws IllegalArgumentException Se o ID fornecido for nulo.
      * @throws EntityNotFoundException Se nenhum usuário for encontrado com o ID fornecido.
      */
-    public UserDTO findUserById(Long id){
-        if(id == null){
+    public UserDTO findUserById(Long id) {
+        if (id == null) {
+            log.error("ID do usuário não fornecido.");
             throw new IllegalArgumentException("Id do usuário não fornecido");
         }
+
+        log.info("Recuperando usuário com ID: {}", id);
+
         return userMapper.toDto(
                 userRepository.findById(id)
-                        .orElseThrow( () -> new EntityNotFoundException("Usuário não encontrado. Id Fornecido: " + id)));
+                        .orElseThrow(() -> {
+                            log.info("Usuário não encontrado. Id fornecido: {}", id);
+                            return new EntityNotFoundException("Usuário não encontrado. Id fornecido: " + id);
+                        })
+        );
     }
-
 
     /**
      * Recupera os usuários a partir do projeto.
@@ -84,13 +89,19 @@ public class UserService {
      * @throws IllegalArgumentException Se o ID fornecido for nulo.
      * @throws EntityNotFoundException Se nenhum projeto for encontrado com o ID fornecido.
      */
-    public List<UserDTO> findUsersByProject(Long projectId){
-        if(projectId == null){
+    public List<UserDTO> findUsersByProject(Long projectId) {
+        if (projectId == null) {
+            log.error("ID do projeto não fornecido.");
             throw new IllegalArgumentException("Id do projeto não fornecido");
         }
 
+        log.info("Recuperando usuários do projeto com ID: {}", projectId);
+
         Project projetoEncontrado = projectRepository.findById(projectId)
-                .orElseThrow( () -> new EntityNotFoundException("Preojeto não encontrado"));
+                .orElseThrow(() -> {
+                    log.info("Projeto não encontrado. Id fornecido: {}", projectId);
+                    return new EntityNotFoundException("Projeto não encontrado. Id fornecido: " + projectId);
+                });
 
         return userRepository.findByProjects_Id(projectId)
                 .stream()
@@ -106,12 +117,15 @@ public class UserService {
      * @throws UserValidationException Se houver erros de validação nos dados fornecidos do usuário.
      * @throws Exception Se um usuário com o mesmo e-mail já existir.
      */
-    public User addNewUser(User user) throws Exception{
+    public User addNewUser(User user) throws Exception {
+        log.info("Adicionando novo usuário: {}", user);
+
         validateUser(user);
 
         Optional<User> checkEmail = userRepository.findUserByEmail(user.getEmail());
 
         if (checkEmail.isPresent()) {
+            log.info("Já existe um usuário cadastrado com este e-mail.");
             throw new Exception("Já existe um usuário cadastrado com este e-mail");
         }
 
@@ -128,13 +142,19 @@ public class UserService {
      * @throws EntityNotFoundException Se nenhum usuário for encontrado com o ID fornecido.
      * @throws UserValidationException Se houver erros de validação nos dados fornecidos do usuário.
      */
-    public User updateUser(User user, Long id){
-        if(id == null){
+    public User updateUser(User user, Long id) {
+        if (id == null) {
+            log.error("ID de usuário não fornecido.");
             throw new IllegalArgumentException("Id de usuário não fornecido");
         }
 
+        log.info("Atualizando usuário com ID: {}", id);
+
         User usuarioEncontrado = userRepository.findById(id)
-                .orElseThrow( () -> new EntityNotFoundException("Usuário não encontrado. Id Fornecido: "  + id));
+                .orElseThrow(() -> {
+                    log.info("Usuário não encontrado. Id fornecido: {}", id);
+                    return new EntityNotFoundException("Usuário não encontrado. Id fornecido: " + id);
+                });
 
         validateUser(user);
 
@@ -153,24 +173,28 @@ public class UserService {
      * @throws EntityNotFoundException Se nenhum usuário for encontrado com o ID fornecido.
      * @throws RuntimeException Se ocorrer um erro durante o processo de exclusão.
      */
-    public void deleteUserById(Long id){
-        if(id == null){
+    public void deleteUserById(Long id) {
+        if (id == null) {
+            log.error("ID de usuário não fornecido.");
             throw new IllegalArgumentException("Id de usuário não fornecido");
         }
-        try{
+
+        log.info("Excluindo usuário com ID: {}", id);
+
+        try {
             userRepository.findById(id)
                     .ifPresentOrElse(
                             user -> userRepository.delete(user),
                             () -> {
-                                throw new EntityNotFoundException("Usuário não encontrado. Id Fornecido: " + id);
+                                log.info("Usuário não encontrado. Id fornecido: {}", id);
+                                throw new EntityNotFoundException("Usuário não encontrado. Id fornecido: " + id);
                             }
                     );
         } catch (Exception ex) {
+            log.error("Erro ao deletar usuário. Causa: {}", ex.getMessage(), ex);
             throw new RuntimeException("Erro ao deletar usuário. Causa: " + ex.getMessage(), ex);
         }
     }
-
-
 
     /**
      * Valida o objeto usuário passado no corpo da requisição.
@@ -179,15 +203,13 @@ public class UserService {
      * @throws UserValidationException Se houver erros de validação nos dados fornecidos do usuário.
      */
     private void validateUser(User user) throws UserValidationException {
+        log.info("Validando usuário: {}", user);
 
         Set<ConstraintViolation<User>> violations = validator.validate(user);
 
         if (!violations.isEmpty()) {
+            log.info("Usuário inválido. Motivos: {}", violations);
             throw new UserValidationException("Erro de validação ao adicionar um novo usuário", violations);
         }
     }
-
 }
-
-
-

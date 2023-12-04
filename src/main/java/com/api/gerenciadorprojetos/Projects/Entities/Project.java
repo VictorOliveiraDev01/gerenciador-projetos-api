@@ -13,6 +13,11 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
+/**
+ * Entidade que representa um projeto.
+ *
+ * @author victor.marcelo
+ */
 
 @Entity
 @Data
