@@ -3,12 +3,12 @@ package com.api.gerenciadorprojetos.Projects.Entities;
 import com.api.gerenciadorprojetos.Projects.Enums.StatusProjeto;
 import com.api.gerenciadorprojetos.Tasks.Entities.Task;
 import com.api.gerenciadorprojetos.Users.Entities.User;
-import jakarta.persistence.*;
-import jakarta.validation.constraints.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import javax.persistence.*;
+import javax.validation.constraints.*;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -24,7 +24,7 @@ import java.util.List;
 @AllArgsConstructor
 @NoArgsConstructor
 @Table(name = "projetos")
-public class Project {
+public class Project{
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

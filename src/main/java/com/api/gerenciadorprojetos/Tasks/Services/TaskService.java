@@ -2,9 +2,7 @@ package com.api.gerenciadorprojetos.Tasks.Services;
 
 import com.api.gerenciadorprojetos.Exceptions.TaskValidationException;
 import com.api.gerenciadorprojetos.Exceptions.UnauthorizedException;
-import com.api.gerenciadorprojetos.Projects.DTO.ProjectDTO;
 import com.api.gerenciadorprojetos.Projects.Entities.Project;
-import com.api.gerenciadorprojetos.Projects.Enums.StatusProjeto;
 import com.api.gerenciadorprojetos.Projects.Repositories.ProjectRepository;
 import com.api.gerenciadorprojetos.Tasks.DTO.TaskDTO;
 import com.api.gerenciadorprojetos.Tasks.Entities.Task;
@@ -22,7 +20,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;

@@ -29,6 +29,10 @@ public class User {
     @NotBlank(message = "O Nome é obrigatório")
     private String nome;
 
+    @Column(name = "login_usuario", nullable = false, columnDefinition = "VARCHAR")
+    @NotBlank(message = "O Login é obrigatório")
+    private String loginUsuario;
+
     @Column(name = "email_usuario", nullable = false, unique = true, columnDefinition = "VARCHAR")
     @NotBlank(message = "O E-mail é obrigatório")
     @Email(message = "E-mail inválido")
