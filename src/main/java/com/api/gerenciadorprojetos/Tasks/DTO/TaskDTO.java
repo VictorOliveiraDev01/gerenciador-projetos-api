@@ -1,6 +1,7 @@
 package com.api.gerenciadorprojetos.Tasks.DTO;
 
 import com.api.gerenciadorprojetos.Projects.DTO.ProjectDTO;
+import com.api.gerenciadorprojetos.Tasks.Enums.StatusTarefa;
 import com.api.gerenciadorprojetos.Users.DTO.UserDTO;
 import lombok.Data;
 
@@ -19,7 +20,7 @@ public class TaskDTO {
     private String descricao;
     private LocalDateTime dataInicio;
     private LocalDateTime dataTerminoPrevista;
-    private String status;
+    private StatusTarefa status;
     private List<UserDTO> responsaveis;
     private ProjectDTO projeto;
     private LocalDateTime dataConclusao;

@@ -21,4 +21,6 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
             @Param("userId") Long userId,
             @Param("status") StatusTarefa statusTarefa);
 
+    Long countByResponsaveis_IdAndStatus(Long userId, StatusTarefa statusTarefa);
+
 }

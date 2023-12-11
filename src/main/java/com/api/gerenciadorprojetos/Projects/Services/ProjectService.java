@@ -9,6 +9,9 @@ import com.api.gerenciadorprojetos.Projects.Mappers.ProjectMapper;
 import com.api.gerenciadorprojetos.Projects.Repositories.ProjectRepository;
 import com.api.gerenciadorprojetos.Users.Entities.User;
 import com.api.gerenciadorprojetos.Users.Repositories.UserRepository;
+import com.api.gerenciadorprojetos.audit.Entities.AuditLog;
+import com.api.gerenciadorprojetos.audit.Repositories.AuditLogRepository;
+import com.api.gerenciadorprojetos.config.RequestInfo;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.transaction.Transactional;
 import jakarta.validation.ConstraintViolation;
@@ -39,13 +42,16 @@ public class ProjectService {
 
     private final ProjectRepository projectRepository;
     private final UserRepository userRepository;
+
+    private final AuditLogRepository auditLogRepository;
     private final ProjectMapper projectMapper;
     private final Validator validator;
 
     @Autowired
-    public ProjectService(ProjectRepository projectRepository, UserRepository userRepository, ProjectMapper projectMapper, Validator validator) {
+    public ProjectService(ProjectRepository projectRepository, UserRepository userRepository, AuditLogRepository auditLogRepository, ProjectMapper projectMapper, Validator validator) {
         this.projectRepository = projectRepository;
         this.userRepository = userRepository;
+        this.auditLogRepository = auditLogRepository;
         this.projectMapper = projectMapper;
         this.validator = validator;
     }
@@ -127,22 +133,26 @@ public class ProjectService {
      * @throws ProjectValidationException  Se a validação do projeto falhar.
      */
     @Transactional
-    public Project addNewProject(Project project, Long userId) {
+    public Project addNewProject(Project project, Long userId, RequestInfo requestInfo) {
         project.setDataCriacaoProjeto(LocalDateTime.now());
 
         log.info("Adicionando novo projeto: {}", project);
 
         validateProject(project);
 
+        User usuario = userRepository.findById(userId).
+                 orElseThrow(
+                        () -> {
+                             log.info("Usuário não encontrado.");
+                             return new EntityNotFoundException("Usuário não encontrado");
+                         });
+
         project.setStatus(StatusProjeto.CRIADO);
         project.setPorcentagemConcluida(0);
-        project.setCriadorProjeto(userRepository.findById(userId).
-                orElseThrow(
-                        () -> {
-                            log.info("Usuário não encontrado.");
-                            return new EntityNotFoundException("Usuário não encontrado");
-                        }
-                ));
+        project.setCriadorProjeto(usuario);
+
+
+        addAudit(usuario, "Criação de um novo projeto", "Projeto", requestInfo);
 
         return projectRepository.save(project);
     }
@@ -159,7 +169,7 @@ public class ProjectService {
      * @throws ProjectValidationException   Se a validação do projeto falhar.
      */
     @Transactional
-    public Project updateProject(Long projectId, Project project) {
+    public Project updateProject(Long projectId, Long userId, Project project, RequestInfo requestInfo) {
         if (projectId == null) {
             log.error("Id de projeto não fornecido");
             throw new IllegalArgumentException("Id de projeto não fornecido");
@@ -172,6 +182,12 @@ public class ProjectService {
                     log.info("Projeto não encontrado.");
                     return new EntityNotFoundException("Projeto não encontrado");
                 });
+
+        User usuario = userRepository.findById(userId)
+                        .orElseThrow(() ->{
+                            log.info("Usuário não encontrado.");
+                            return new EntityNotFoundException("Usuário não encontrado");
+                        });
 
         validateProject(project);
 
@@ -189,6 +205,8 @@ public class ProjectService {
         } else if (project.getPorcentagemConcluida() == CONCLUIDO_PERCENTAGE) {
             projetoEncontrado.setStatus(StatusProjeto.CONCLUIDO);
         }
+
+        addAudit(usuario, "Atualização de um projeto existente. Id do projeto: " + projectId, "Projeto", requestInfo);
 
         return projectRepository.save(projetoEncontrado);
     }
@@ -424,6 +442,26 @@ public class ProjectService {
         if (!violations.isEmpty()) {
             log.info("Projeto inválido. Motivos: {}", violations);
             throw new ProjectValidationException("Erro de validação ao adicionar um novo projeto", violations);
+        }
+    }
+
+
+    private void addAudit(User usuario, String acao, String entidade,  RequestInfo requestInfo){
+        AuditLog auditLog = new AuditLog();
+        auditLog.setHorarioRegistro(LocalDateTime.now());
+        auditLog.setUsuario(usuario);
+        auditLog.setAcaoRealizada(acao);
+        auditLog.setEntidadeAfetada(entidade);
+        auditLog.setEnderecoIP(requestInfo.getIpAddress());
+        auditLog.setAgenteUsuario(requestInfo.getUserAgent());
+        auditLog.setOrigemAcao(requestInfo.getOrigin());
+        auditLog.setInformacoesSessao(requestInfo.getSessionId());
+        try {
+            log.info("Registrando log de ações do usuário com id: {}", usuario.getId());
+            auditLogRepository.save(auditLog);
+        }catch (Exception ex){
+            log.error("Erro ao registrar log de ações do usuário de id {}", usuario.getId());
+            throw new RuntimeException("Erro ao registrar log de ações do usuário. Causa: " + ex);
         }
     }
 }

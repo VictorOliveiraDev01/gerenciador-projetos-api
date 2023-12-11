@@ -16,20 +16,20 @@ public interface ProjectMapper {
 
     ProjectMapper INSTANCE = org.mapstruct.factory.Mappers.getMapper(ProjectMapper.class);
 
-    @Mappings({
-            @Mapping(source = "id", target = "id"),
-            @Mapping(source = "nomeProjeto", target = "nomeProjeto"),
-            @Mapping(source = "descricao", target = "descricao"),
-            @Mapping(source = "dataInicio", target = "dataInicio"),
-            @Mapping(source = "dataTerminoPrevista", target = "dataTerminoPrevista"),
-            @Mapping(source = "status", target = "status"),
-            @Mapping(source = "gerenteProjeto", target = "gerenteProjeto"),
-            @Mapping(source = "orcamento", target = "orcamento"),
-            @Mapping(source = "prioridade", target = "prioridade"),
-            @Mapping(source = "membrosProjeto", target = "membrosProjeto")
-    })
+
+    @Mapping(source = "id", target = "id")
+    @Mapping(source = "nomeProjeto", target = "nomeProjeto")
+    @Mapping(source = "descricao", target = "descricao")
+    @Mapping(source = "dataInicio", target = "dataInicio")
+    @Mapping(source = "dataTerminoPrevista", target = "dataTerminoPrevista")
+    @Mapping(source = "status", target = "status")
+    @Mapping(source = "gerenteProjeto", target = "gerenteProjeto")
+    @Mapping(source = "orcamento", target = "orcamento")
+    @Mapping(source = "prioridade", target = "prioridade")
+    @Mapping(source = "membrosProjeto", target = "membrosProjeto")
     ProjectDTO toDto(Project project);
 
+    /*
     @Mappings({
             @Mapping(source = "id", target = "id"),
             @Mapping(source = "nomeProjeto", target = "nomeProjeto"),
@@ -43,5 +43,7 @@ public interface ProjectMapper {
             @Mapping(source = "membrosProjeto", target = "membrosProjeto")
     })
     Project toEntity(ProjectDTO projectDTO);
+
+     */
 }
 

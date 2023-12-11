@@ -11,5 +11,6 @@ import lombok.Data;
 public class UserDTO {
     private Long id;
     private String nome;
+    private String loginUsuario;
     private String email;
 }

@@ -3,7 +3,6 @@ package com.api.gerenciadorprojetos.Exceptions;
 import com.api.gerenciadorprojetos.Tasks.Entities.Task;
 import jakarta.validation.ConstraintViolation;
 
-import javax.validation.ConstraintViolation;
 import java.util.Set;
 
 /**
