@@ -44,10 +44,10 @@ public class SecurityFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
         try {
-            String jwtToken = extractJwtToken(request);
+            String token = extractJwtToken(request);
 
-            if (jwtToken != null && Jwts.parser().setSigningKey(jwtSecret).isSigned(jwtToken)) {
-                Claims claims = Jwts.parser().setSigningKey(jwtSecret).parseClaimsJws(jwtToken).getBody();
+            if (token != null && Jwts.parser().setSigningKey(jwtSecret).isSigned(token)) {
+                Claims claims = Jwts.parser().setSigningKey(jwtSecret).parseClaimsJws(token).getBody();
 
                 Authentication authentication = new UsernamePasswordAuthenticationToken(
                         claims.getSubject(), null, null);

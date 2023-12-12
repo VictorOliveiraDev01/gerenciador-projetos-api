@@ -11,6 +11,7 @@ import com.api.gerenciadorprojetos.Users.Entities.User;
 import com.api.gerenciadorprojetos.Users.Repositories.UserRepository;
 import com.api.gerenciadorprojetos.audit.Entities.AuditLog;
 import com.api.gerenciadorprojetos.audit.Repositories.AuditLogRepository;
+import com.api.gerenciadorprojetos.audit.Services.AuditLogService;
 import com.api.gerenciadorprojetos.config.RequestInfo;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.transaction.Transactional;
@@ -26,6 +27,7 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -39,19 +41,17 @@ public class ProjectService {
 
     private static final Logger log = LoggerFactory.getLogger(ProjectService.class);
     private static final int CONCLUIDO_PERCENTAGE = 100;
-
     private final ProjectRepository projectRepository;
     private final UserRepository userRepository;
-
-    private final AuditLogRepository auditLogRepository;
+    private final AuditLogService auditLogService;
     private final ProjectMapper projectMapper;
     private final Validator validator;
 
     @Autowired
-    public ProjectService(ProjectRepository projectRepository, UserRepository userRepository, AuditLogRepository auditLogRepository, ProjectMapper projectMapper, Validator validator) {
+    public ProjectService(ProjectRepository projectRepository, UserRepository userRepository, AuditLogService auditLogService, ProjectMapper projectMapper, Validator validator) {
         this.projectRepository = projectRepository;
         this.userRepository = userRepository;
-        this.auditLogRepository = auditLogRepository;
+        this.auditLogService = auditLogService;
         this.projectMapper = projectMapper;
         this.validator = validator;
     }
@@ -152,7 +152,8 @@ public class ProjectService {
         project.setCriadorProjeto(usuario);
 
 
-        addAudit(usuario, "Criação de um novo projeto", "Projeto", requestInfo);
+        //Adiciona Log do audit
+        auditLogService.addAudit(usuario, "Criação de um novo projeto", null, "Projeto", requestInfo);
 
         return projectRepository.save(project);
     }
@@ -206,7 +207,10 @@ public class ProjectService {
             projetoEncontrado.setStatus(StatusProjeto.CONCLUIDO);
         }
 
-        addAudit(usuario, "Atualização de um projeto existente. Id do projeto: " + projectId, "Projeto", requestInfo);
+        String detalhesAlteracao = buildDetalhesAlteracao(projetoEncontrado, project);
+
+        //Adiciona log do audit
+        auditLogService.addAudit(usuario, "Atualização de um projeto existente. Id do projeto: " + projectId, detalhesAlteracao, "Projeto", requestInfo);
 
         return projectRepository.save(projetoEncontrado);
     }
@@ -445,23 +449,43 @@ public class ProjectService {
         }
     }
 
+    /**
+     * Constrói uma mensagem detalhada indicando quais campos foram alterados em um projeto (PARA ARMAZENAMENTO EM LOG DE AUDIT).
+     *
+     * @param projetoAntigo O projeto antes da atualização.
+     * @param projetoNovo   O projeto após a atualização.
+     * @return Uma mensagem detalhada das alterações nos campos.
+     */
+    private String buildDetalhesAlteracao(Project projetoAntigo, Project projetoNovo) {
+        StringBuilder detalhesAlteracao = new StringBuilder("Campos Alterados: ");
 
-    private void addAudit(User usuario, String acao, String entidade,  RequestInfo requestInfo){
-        AuditLog auditLog = new AuditLog();
-        auditLog.setHorarioRegistro(LocalDateTime.now());
-        auditLog.setUsuario(usuario);
-        auditLog.setAcaoRealizada(acao);
-        auditLog.setEntidadeAfetada(entidade);
-        auditLog.setEnderecoIP(requestInfo.getIpAddress());
-        auditLog.setAgenteUsuario(requestInfo.getUserAgent());
-        auditLog.setOrigemAcao(requestInfo.getOrigin());
-        auditLog.setInformacoesSessao(requestInfo.getSessionId());
-        try {
-            log.info("Registrando log de ações do usuário com id: {}", usuario.getId());
-            auditLogRepository.save(auditLog);
-        }catch (Exception ex){
-            log.error("Erro ao registrar log de ações do usuário de id {}", usuario.getId());
-            throw new RuntimeException("Erro ao registrar log de ações do usuário. Causa: " + ex);
+        if (!Objects.equals(projetoAntigo.getNomeProjeto(), projetoNovo.getNomeProjeto())) {
+            detalhesAlteracao.append("Nome: ").append(projetoNovo.getNomeProjeto()).append(", ");
         }
+        if (!Objects.equals(projetoAntigo.getDescricao(), projetoNovo.getDescricao())) {
+            detalhesAlteracao.append("Descrição: ").append(projetoNovo.getDescricao()).append(", ");
+        }
+        if (!Objects.equals(projetoAntigo.getDataInicio(), projetoNovo.getDataInicio())) {
+            detalhesAlteracao.append("Data de Início: ").append(projetoNovo.getDataInicio()).append(", ");
+        }
+        if (!Objects.equals(projetoAntigo.getDataTerminoPrevista(), projetoNovo.getDataTerminoPrevista())) {
+            detalhesAlteracao.append("Data de Término Prevista: ").append(projetoNovo.getDataTerminoPrevista()).append(", ");
+        }
+        if (!Objects.equals(projetoAntigo.getGerenteProjeto(), projetoNovo.getGerenteProjeto())) {
+            detalhesAlteracao.append("Gerente do Projeto: ").append(projetoNovo.getGerenteProjeto()).append(", ");
+        }
+        if (!Objects.equals(projetoAntigo.getOrcamento(), projetoNovo.getOrcamento())) {
+            detalhesAlteracao.append("Orçamento: ").append(projetoNovo.getOrcamento()).append(", ");
+        }
+        if (!Objects.equals(projetoAntigo.getPrioridade(), projetoNovo.getPrioridade())) {
+            detalhesAlteracao.append("Prioridade: ").append(projetoNovo.getPrioridade()).append(", ");
+        }
+        if (!Objects.equals(projetoAntigo.getPorcentagemConcluida(), projetoNovo.getPorcentagemConcluida())) {
+            detalhesAlteracao.append("Porcentagem Concluída: ").append(projetoNovo.getPorcentagemConcluida()).append(", ");
+        }
+
+        return detalhesAlteracao.toString();
     }
+
+
 }

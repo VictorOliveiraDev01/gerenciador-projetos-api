@@ -28,6 +28,9 @@ public class AuditLog {
     @Column(name = "acao")
     private String acaoRealizada;
 
+    @Column(name = "detalhes")
+    private String detalhes;
+
     @Column(name = "entidade_afetada")
     private String entidadeAfetada;
 
