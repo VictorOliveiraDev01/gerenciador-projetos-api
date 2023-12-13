@@ -218,26 +218,31 @@ public class ProjectService {
     /**
      * Adiciona um usuário a um projeto.
      *
-     * @param userId    ID do usuário a ser associado ao projeto.
+     * @param userIdAdd  ID do usuário a ser associado ao projeto.
+     * @param userId  ID DO usuário que está realizando a ação
      * @param projectId ID do projeto ao qual o usuário será associado.
      * @return Projeto atualizado.
      * @throws IllegalArgumentException       Se os IDs de usuário e projeto não forem fornecidos.
      * @throws EntityNotFoundException        Se o usuário ou o projeto não forem encontrados.
      */
     @Transactional
-    public Project addUserToProject(Long userId, Long projectId) throws Exception {
+    public Project addUserToProject(Long userIdAdd, Long userId, Long projectId, RequestInfo requestInfo) throws Exception {
         if (userId == null || projectId == null) {
             log.error("IDs não fornecidos: IDs solicitados: IDs de usuário e projeto");
             throw new IllegalArgumentException("Ids não fornecidos: Ids solicitados: Ids de usuário e projeto");
         }
 
-        log.info("Associando usuário com ID {} ao projeto com ID {}", userId, projectId);
+        log.info("Associando usuário com ID {} ao projeto com ID {}", userIdAdd, projectId);
 
-        User usuarioEncontrado = userRepository.findById(userId)
+        //Usuário a ser adicionado
+        User userForAdd = userRepository.findById(userIdAdd)
                 .orElseThrow(() -> {
                     log.info("Usuário não encontrado.");
                     return new EntityNotFoundException("Usuário não encontrado");
                 });
+
+        //Usuário que está executando a ação
+        User userExecuteAction = userRepository.findById(userId).get();
 
         Project projetoEncontrado = projectRepository.findById(projectId)
                 .orElseThrow(() -> {
@@ -247,9 +252,17 @@ public class ProjectService {
 
         List<User> usuariosProjeto = projetoEncontrado.getMembrosProjeto();
 
-        if (!usuariosProjeto.contains(usuarioEncontrado)) {
-            usuariosProjeto.add(usuarioEncontrado);
+        if (!usuariosProjeto.contains(userForAdd)) {
+            usuariosProjeto.add(userForAdd);
             projetoEncontrado.setMembrosProjeto(usuariosProjeto);
+
+            auditLogService.addAudit(
+                    userExecuteAction,
+                    "Adicionando usuario a um projeto ",
+                    "Id do usuário adicionado: " + userIdAdd + "," + " Id do projeto: " + projectId,
+                    "Projeto", requestInfo
+            );
+
             return projectRepository.save(projetoEncontrado);
         } else {
             log.info("Usuário não adicionado ao projeto. Motivo: Usuário já associado ao projeto.");
@@ -267,7 +280,7 @@ public class ProjectService {
      * @throws EntityNotFoundException  Se o usuário ou o projeto não forem encontrados.
      */
     @Transactional
-    public Project removeUserFromProject(Long userId, Long projectId) {
+    public Project removeUserFromProject(Long userIdRemove, Long userId, Long projectId, RequestInfo requestInfo) {
         if (userId == null || projectId == null) {
             log.error("IDs não fornecidos: IDs solicitados: IDs de usuário e projeto");
             throw new IllegalArgumentException("Ids não fornecidos: Ids solicitados: Ids de usuário e projeto");
@@ -275,11 +288,13 @@ public class ProjectService {
 
         log.info("Removendo usuário com ID {} do projeto com ID {}", userId, projectId);
 
-        User usuarioEncontrado = userRepository.findById(userId)
+        User userForRemove = userRepository.findById(userId)
                 .orElseThrow(() -> {
                     log.info("Usuário não encontrado.");
                     return new EntityNotFoundException("Usuário não encontrado");
                 });
+
+        User userExecuteAction = userRepository.findById(userId).get();
 
         Project projetoEncontrado = projectRepository.findById(projectId)
                 .orElseThrow(() -> {
@@ -289,10 +304,18 @@ public class ProjectService {
 
         List<User> usuariosProjeto = projetoEncontrado.getMembrosProjeto();
 
-        if (usuariosProjeto.contains(usuarioEncontrado)) {
-            usuariosProjeto.remove(usuarioEncontrado);
+        if (usuariosProjeto.contains(userForRemove)) {
+            usuariosProjeto.remove(userForRemove);
             projetoEncontrado.setMembrosProjeto(usuariosProjeto);
         }
+
+        auditLogService.addAudit(
+                userExecuteAction,
+                "Removendo usuario de um projeto ",
+                "Id do usuário adicionado: " + userIdRemove + "," + " Id do projeto: " + projectId,
+                "Projeto", requestInfo
+        );
+
         return projectRepository.save(projetoEncontrado);
     }
 
