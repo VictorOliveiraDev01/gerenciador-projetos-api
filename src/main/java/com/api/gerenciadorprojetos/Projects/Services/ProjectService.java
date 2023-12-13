@@ -9,8 +9,6 @@ import com.api.gerenciadorprojetos.Projects.Mappers.ProjectMapper;
 import com.api.gerenciadorprojetos.Projects.Repositories.ProjectRepository;
 import com.api.gerenciadorprojetos.Users.Entities.User;
 import com.api.gerenciadorprojetos.Users.Repositories.UserRepository;
-import com.api.gerenciadorprojetos.audit.Entities.AuditLog;
-import com.api.gerenciadorprojetos.audit.Repositories.AuditLogRepository;
 import com.api.gerenciadorprojetos.audit.Services.AuditLogService;
 import com.api.gerenciadorprojetos.config.RequestInfo;
 import jakarta.persistence.EntityNotFoundException;
@@ -85,13 +83,7 @@ public class ProjectService {
 
         log.info("Recuperando projeto com ID: {}", projectId);
 
-        return projectMapper.toDto(
-                projectRepository.findById(projectId)
-                        .orElseThrow(() -> {
-                            log.info("Projeto não encontrado. Id fornecido: {}", projectId);
-                            return new EntityNotFoundException("Projeto não encontrado. Id fornecido: " + projectId);
-                        })
-        );
+        return projectMapper.toDto(getProjectById(projectId));
     }
 
     /**
@@ -110,11 +102,8 @@ public class ProjectService {
 
         log.info("Recuperando projetos associados ao usuário com ID: {}", userId);
 
-        User usuarioEncontrado = userRepository.findById(userId)
-                .orElseThrow(() -> {
-                    log.info("Usuário não encontrado.");
-                    return new EntityNotFoundException("Usuário não encontrado");
-                });
+        //Verifica se o usuário existe
+        getUserById(userId);
 
         return projectRepository.findProjectsByUser_Id(userId)
                 .stream()
@@ -126,7 +115,7 @@ public class ProjectService {
      * Adiciona um novo projeto.
      *
      * @param project Novo projeto a ser adicionado.
-     * @param userId  ID do usuário que está criando o projeto.
+     * @param userId  ID do usuário que está criando o projeto / EXECUTANDO A AÇÃO.
      * @return Projeto recém-criado.
      * @throws UserValidationException     Se a validação do usuário falhar.
      * @throws EntityNotFoundException     Se o usuário não for encontrado.
@@ -140,20 +129,15 @@ public class ProjectService {
 
         validateProject(project);
 
-        User usuario = userRepository.findById(userId).
-                 orElseThrow(
-                        () -> {
-                             log.info("Usuário não encontrado.");
-                             return new EntityNotFoundException("Usuário não encontrado");
-                         });
+        User userExecuteAction = getUserById(userId);
 
         project.setStatus(StatusProjeto.CRIADO);
         project.setPorcentagemConcluida(0);
-        project.setCriadorProjeto(usuario);
+        project.setCriadorProjeto(userExecuteAction);
 
 
         //Adiciona Log do audit
-        auditLogService.addAudit(usuario, "Criação de um novo projeto", null, "Projeto", requestInfo);
+        auditLogService.addAudit(userExecuteAction, "Criação de um novo projeto", null, "Projeto", requestInfo);
 
         return projectRepository.save(project);
     }
@@ -178,41 +162,38 @@ public class ProjectService {
 
         log.info("Atualizando projeto com ID: {}", projectId);
 
-        Project projetoEncontrado = projectRepository.findById(projectId)
-                .orElseThrow(() -> {
-                    log.info("Projeto não encontrado.");
-                    return new EntityNotFoundException("Projeto não encontrado");
-                });
+        Project projectToUpdate = getProjectById(projectId);
 
-        User usuario = userRepository.findById(userId)
-                        .orElseThrow(() ->{
-                            log.info("Usuário não encontrado.");
-                            return new EntityNotFoundException("Usuário não encontrado");
-                        });
+        User userExecuteAction = getUserById(userId);
 
         validateProject(project);
 
-        projetoEncontrado.setNomeProjeto(project.getNomeProjeto());
-        projetoEncontrado.setDescricao(project.getDescricao());
-        projetoEncontrado.setDataInicio(project.getDataInicio());
-        projetoEncontrado.setDataTerminoPrevista(project.getDataTerminoPrevista());
-        projetoEncontrado.setGerenteProjeto(project.getGerenteProjeto());
-        projetoEncontrado.setOrcamento(project.getOrcamento());
-        projetoEncontrado.setPrioridade(project.getPrioridade());
-        projetoEncontrado.setPorcentagemConcluida(project.getPorcentagemConcluida());
+        projectToUpdate.setNomeProjeto(project.getNomeProjeto());
+        projectToUpdate.setDescricao(project.getDescricao());
+        projectToUpdate.setDataInicio(project.getDataInicio());
+        projectToUpdate.setDataTerminoPrevista(project.getDataTerminoPrevista());
+        projectToUpdate.setGerenteProjeto(project.getGerenteProjeto());
+        projectToUpdate.setOrcamento(project.getOrcamento());
+        projectToUpdate.setPrioridade(project.getPrioridade());
+        projectToUpdate.setPorcentagemConcluida(project.getPorcentagemConcluida());
 
         if (project.getPorcentagemConcluida() > 0) {
-            projetoEncontrado.setStatus(StatusProjeto.EM_ANDAMENTO);
+            projectToUpdate.setStatus(StatusProjeto.EM_ANDAMENTO);
         } else if (project.getPorcentagemConcluida() == CONCLUIDO_PERCENTAGE) {
-            projetoEncontrado.setStatus(StatusProjeto.CONCLUIDO);
+            projectToUpdate.setStatus(StatusProjeto.CONCLUIDO);
         }
 
-        String detalhesAlteracao = buildDetalhesAlteracao(projetoEncontrado, project);
+        String detalhesAlteracao = buildDetalhesAlteracao(projectToUpdate, project);
 
         //Adiciona log do audit
-        auditLogService.addAudit(usuario, "Atualização de um projeto existente. Id do projeto: " + projectId, detalhesAlteracao, "Projeto", requestInfo);
+        auditLogService.addAudit(userExecuteAction,
+                "Atualização de um projeto existente. Id do projeto: " + projectId,
+                detalhesAlteracao,
+                "Projeto",
+                requestInfo
+        );
 
-        return projectRepository.save(projetoEncontrado);
+        return projectRepository.save(projectToUpdate);
     }
 
     /**
@@ -235,35 +216,28 @@ public class ProjectService {
         log.info("Associando usuário com ID {} ao projeto com ID {}", userIdAdd, projectId);
 
         //Usuário a ser adicionado
-        User userForAdd = userRepository.findById(userIdAdd)
-                .orElseThrow(() -> {
-                    log.info("Usuário não encontrado.");
-                    return new EntityNotFoundException("Usuário não encontrado");
-                });
+        User userForAdd = getUserById(userIdAdd);
 
         //Usuário que está executando a ação
-        User userExecuteAction = userRepository.findById(userId).get();
+        User userExecuteAction = getUserById(userId);
 
-        Project projetoEncontrado = projectRepository.findById(projectId)
-                .orElseThrow(() -> {
-                    log.info("Projeto não encontrado.");
-                    return new EntityNotFoundException("Projeto não encontrado");
-                });
+        Project projectFilter = getProjectById(projectId);
 
-        List<User> usuariosProjeto = projetoEncontrado.getMembrosProjeto();
+        List<User> usuariosProjeto = projectFilter.getMembrosProjeto();
 
         if (!usuariosProjeto.contains(userForAdd)) {
             usuariosProjeto.add(userForAdd);
-            projetoEncontrado.setMembrosProjeto(usuariosProjeto);
+            projectFilter.setMembrosProjeto(usuariosProjeto);
 
             auditLogService.addAudit(
                     userExecuteAction,
                     "Adicionando usuario a um projeto ",
                     "Id do usuário adicionado: " + userIdAdd + "," + " Id do projeto: " + projectId,
-                    "Projeto", requestInfo
+                    "Projeto",
+                    requestInfo
             );
 
-            return projectRepository.save(projetoEncontrado);
+            return projectRepository.save(projectFilter);
         } else {
             log.info("Usuário não adicionado ao projeto. Motivo: Usuário já associado ao projeto.");
             throw new Exception("Usuário já associado ao projeto");
@@ -288,35 +262,28 @@ public class ProjectService {
 
         log.info("Removendo usuário com ID {} do projeto com ID {}", userId, projectId);
 
-        User userForRemove = userRepository.findById(userId)
-                .orElseThrow(() -> {
-                    log.info("Usuário não encontrado.");
-                    return new EntityNotFoundException("Usuário não encontrado");
-                });
+        User userForRemove = getUserById(userIdRemove);
 
-        User userExecuteAction = userRepository.findById(userId).get();
+        User userExecuteAction = getUserById(userId);
 
-        Project projetoEncontrado = projectRepository.findById(projectId)
-                .orElseThrow(() -> {
-                    log.info("Projeto não encontrado.");
-                    return new EntityNotFoundException("Projeto não encontrado");
-                });
+        Project projectFilter = getProjectById(projectId);
 
-        List<User> usuariosProjeto = projetoEncontrado.getMembrosProjeto();
+        List<User> usuariosProjeto = projectFilter.getMembrosProjeto();
 
         if (usuariosProjeto.contains(userForRemove)) {
             usuariosProjeto.remove(userForRemove);
-            projetoEncontrado.setMembrosProjeto(usuariosProjeto);
+            projectFilter.setMembrosProjeto(usuariosProjeto);
         }
 
         auditLogService.addAudit(
                 userExecuteAction,
                 "Removendo usuario de um projeto ",
                 "Id do usuário adicionado: " + userIdRemove + "," + " Id do projeto: " + projectId,
-                "Projeto", requestInfo
+                "Projeto",
+                requestInfo
         );
 
-        return projectRepository.save(projetoEncontrado);
+        return projectRepository.save(projectFilter);
     }
 
     /**
@@ -337,21 +304,13 @@ public class ProjectService {
 
         log.info("Definindo usuário com ID {} como gerente do projeto com ID {}", userId, projectId);
 
-        User usuarioEncontrado = userRepository.findById(userId)
-                .orElseThrow(() -> {
-                    log.info("Usuário não encontrado.");
-                    return new EntityNotFoundException("Usuário não encontrado");
-                });
+        User userForAdd = getUserById(userId);
 
-        Project projetoEncontrado = projectRepository.findById(projectId)
-                .orElseThrow(() -> {
-                    log.info("Projeto não encontrado.");
-                    return new EntityNotFoundException("Projeto não encontrado");
-                });
+        Project projectFilter = getProjectById(projectId);
 
-        projetoEncontrado.setGerenteProjeto(usuarioEncontrado);
+        projectFilter.setGerenteProjeto(userForAdd);
 
-        return projectRepository.save(projetoEncontrado);
+        return projectRepository.save(projectFilter);
     }
 
 
@@ -394,11 +353,8 @@ public class ProjectService {
 
         log.info("Recuperando projetos do usuário com ID {} com status {}", userId, status);
 
-        User usuarioEncontrado = userRepository.findById(userId)
-                .orElseThrow(() -> {
-                        log.info("Usuário não encontrado.");
-                        return new EntityNotFoundException("Usuário não encontrado");
-                    });
+        //verificando se o usuário existe
+        getUserById(userId);
 
         return projectRepository.findProjectsByUser_IdAndStatus(userId, status)
                 .stream()
@@ -410,29 +366,38 @@ public class ProjectService {
     /**
      * Deleta um projeto pelo seu ID.
      *
-     * @param projectId O ID do projeto a ser excluído.
-     * @throws IllegalArgumentException Se o ID do projeto fornecido for nulo.
-     * @throws EntityNotFoundException Se o projeto não for encontrado para exclusão.
-     * @throws RuntimeException Se ocorrer um erro ao deletar o projeto.
+     * @param userId      O ID do Usuário que está executando a ação.
+     * @param projectId   O ID do projeto a ser excluído.
+     * @param requestInfo Informações da solicitação.
+     * @throws IllegalArgumentException   Se o ID do projeto fornecido for nulo.
+     * @throws EntityNotFoundException    Se o projeto não for encontrado para exclusão.
+     * @throws RuntimeException           Se ocorrer um erro ao deletar o projeto.
      */
-    public void deleteProjectById(Long projectId) {
+    public void deleteProjectById(Long userId, Long projectId, RequestInfo requestInfo) {
         if (projectId == null) {
-            log.error("Id do projeto não fornecido. Id: " + projectId);
+            log.error("Id do projeto não fornecido. Id fornecido: {} ", projectId);
             throw new IllegalArgumentException("Id do projeto não fornecido");
         }
 
+        User userExecuteAction = getUserById(userId);
+
         try {
-            projectRepository.findById(projectId)
-                    .ifPresentOrElse(
-                            project -> projectRepository.deleteById(projectId),
-                            () -> {
-                                log.info("Projeto não encontrado para deletar");
-                                throw new EntityNotFoundException("Projeto não encontrado");
-                            });
+            Project projectToDelete = getProjectById(projectId);
+
+            projectRepository.delete(projectToDelete);
+
+            auditLogService.addAudit(
+                    userExecuteAction,
+                    "Deletando projeto",
+                    "Id do projeto deletado: " + projectId,
+                    "Projeto",
+                    requestInfo
+            );
         } catch (Exception ex) {
             throw new RuntimeException("Erro ao deletar projeto. Causa: " + ex.getMessage(), ex);
         }
     }
+
 
     /**
      * Atualiza automaticamente o status dos projetos atrasados.
@@ -447,7 +412,7 @@ public class ProjectService {
         List<Project> lateProjects = projectRepository.findAll()
                 .stream()
                 .filter(p -> p.getDataTerminoPrevista() != null && p.getDataTerminoPrevista().isBefore(currentDate))
-                .collect(Collectors.toList());
+                .toList();
 
         for (Project project : lateProjects) {
             project.setStatus(StatusProjeto.ATRASADO);
@@ -508,6 +473,46 @@ public class ProjectService {
         }
 
         return detalhesAlteracao.toString();
+    }
+
+    /**
+     * Obtém o usuário pelo ID.
+     *
+     * @param userId O ID do usuário a ser recuperado.
+     * @return O objeto User correspondente ao ID fornecido.
+     * @throws IllegalArgumentException Se o ID do usuário não for informado.
+     * @throws EntityNotFoundException Se nenhum usuário for encontrado com o ID fornecido.
+     */
+    private User getUserById(Long userId) {
+        if (userId == null) {
+            throw new IllegalArgumentException("Id de usuário não informado");
+        }
+
+        return userRepository.findById(userId)
+                .orElseThrow(() -> {
+                    log.info("Usuário informado não encontrado. Id fornecido {}", userId);
+                    return new EntityNotFoundException("Usuário não encontrado");
+                });
+    }
+
+    /**
+     * Obtém o projeto pelo ID.
+     *
+     * @param projectId O ID do projeto a ser recuperado.
+     * @return O objeto Project correspondente ao ID fornecido.
+     * @throws IllegalArgumentException Se o ID do projeto não for informado.
+     * @throws EntityNotFoundException Se nenhum projeto for encontrado com o ID fornecido.
+     */
+    private Project getProjectById(Long projectId) {
+        if (projectId == null) {
+            throw new IllegalArgumentException("Id de projeto não informado");
+        }
+
+        return projectRepository.findById(projectId)
+                .orElseThrow(() -> {
+                    log.info("Projeto informado não encontrado. Id fornecido {}", projectId);
+                    return new EntityNotFoundException("Projeto não encontrado");
+                });
     }
 
 
