@@ -8,6 +8,8 @@ import org.springframework.scheduling.annotation.Scheduled;
  * Classe que define tarefas agendadas (jobs) para execução automática em intervalos específicos.
  * As tarefas incluem a atualização do status de projetos e tarefas vencidas.
  *
+ * @author victor.marcelo
+ *
  * @see ProjectService
  * @see TaskService
  */

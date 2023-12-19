@@ -103,37 +103,45 @@ public class ProjectController {
     @ApiOperation("Adiciona um usuário a um projeto")
     @PostMapping("/adicionar-usuario/{userId}/{projectId}")
     public ResponseEntity<?> addUserToProject(
-            @ApiParam(value = "ID do usuário", required = true) @PathVariable Long userId,
+            @ApiParam(value = "ID do usuário que está executando a ação", required = true) @PathVariable Long userId,
+            @ApiParam(value = "ID do usuário que será adicionado ao projeto", required = true) @PathVariable Long userIdAdd,
             @ApiParam(value = "ID do projeto", required = true) @PathVariable Long projectId,
             @RequestHeader("Authorization") String token) throws Exception {
-        return ResponseEntity.ok(new Response<>(projectService.addUserToProject(userId, projectId)));
+        RequestInfo requestInfo = getRequestInfo();
+        return ResponseEntity.ok(new Response<>(projectService.addUserToProject(userIdAdd, userId, projectId, requestInfo)));
     }
 
     @ApiOperation("Remove um usuário de um projeto")
     @PostMapping("/remover-usuario/{userId}/{projectId}")
     public ResponseEntity<?> removeUserFromProject(
-            @ApiParam(value = "ID do usuário", required = true) @PathVariable Long userId,
+            @ApiParam(value = "ID do usuário que está executando a ação", required = true) @PathVariable Long userId,
+            @ApiParam(value = "ID do usuário que será removido do projeto", required = true) @PathVariable Long userIdRemove,
             @ApiParam(value = "ID do projeto", required = true) @PathVariable Long projectId,
             @RequestHeader("Authorization") String token) {
-        return ResponseEntity.ok(new Response<>(projectService.removeUserFromProject(userId, projectId)));
+        RequestInfo requestInfo = getRequestInfo();
+        return ResponseEntity.ok(new Response<>(projectService.removeUserFromProject(userIdRemove, userId, projectId, requestInfo)));
     }
 
     @ApiOperation("Adiciona um gerente a um projeto")
     @PostMapping("/adicionar-gerente/{userId}/{projectId}")
     public ResponseEntity<?> addProjectManager(
-            @ApiParam(value = "ID do usuário", required = true) @PathVariable Long userId,
+            @ApiParam(value = "ID do usuário que está executando a ação", required = true) @PathVariable Long userId,
+            @ApiParam(value = "ID do usuário (gerente do projeto)", required = true) @PathVariable Long userIdProjectManager,
             @ApiParam(value = "ID do projeto", required = true) @PathVariable Long projectId,
             @RequestHeader("Authorization") String token) {
-        return ResponseEntity.ok(new Response<>(projectService.addProjectManager(userId, projectId)));
+        RequestInfo requestInfo = getRequestInfo();
+        return ResponseEntity.ok(new Response<>(projectService.addProjectManager(userIdProjectManager, userId, projectId, requestInfo)));
     }
 
     @ApiOperation("Exclui um projeto pelo ID")
     @DeleteMapping("/{id}")
     public ResponseEntity<?> deleteProjectById(
+            @ApiParam(value = "ID do usuário que está executando a ação", required = true) @PathVariable Long userId,
             @ApiParam(value = "ID do projeto", required = true) @PathVariable Long id,
             @RequestHeader("Authorization") String token) {
+        RequestInfo requestInfo = getRequestInfo();
         try {
-            projectService.deleteProjectById(id);
+            projectService.deleteProjectById(userId, id, requestInfo);
             return ResponseEntity.status(HttpStatus.NO_CONTENT).body("Projeto excluído com sucesso");
         } catch (EntityNotFoundException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());

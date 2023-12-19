@@ -6,6 +6,8 @@ import com.api.gerenciadorprojetos.Tasks.Services.TaskService;
 import com.api.gerenciadorprojetos.Users.Entities.User;
 import com.api.gerenciadorprojetos.Users.Services.UserService;
 import com.api.gerenciadorprojetos.Utils.Response;
+import com.api.gerenciadorprojetos.config.CustomRequestInterceptor;
+import com.api.gerenciadorprojetos.config.RequestInfo;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiParam;
@@ -127,14 +129,20 @@ public class TaskController {
     @ApiOperation("Exclui uma tarefa pelo ID")
     @DeleteMapping("/{id}")
     public ResponseEntity<?> deleteTaskById(
+            @ApiParam(value = "ID do usuário que está executando a ação", required = true) @PathVariable Long userId,
             @ApiParam(value = "ID do projeto", required = true) @PathVariable Long id) {
         try {
-            taskService.deleteTaskById(id);
+            RequestInfo requestInfo = getRequestInfo();
+            taskService.deleteTaskById(userId, id, requestInfo);
             return ResponseEntity.status(HttpStatus.NO_CONTENT).body("Tarefa excluída com sucesso");
         } catch (EntityNotFoundException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
         } catch (RuntimeException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
         }
+    }
+
+    private RequestInfo getRequestInfo() {
+        return CustomRequestInterceptor.getRequestInfo();
     }
 }

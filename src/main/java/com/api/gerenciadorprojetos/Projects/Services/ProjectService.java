@@ -296,19 +296,29 @@ public class ProjectService {
      * @throws EntityNotFoundException  Se o usuário ou o projeto não forem encontrados.
      */
     @Transactional
-    public Project addProjectManager(Long userId, Long projectId) {
-        if (userId == null || projectId == null) {
+    public Project addProjectManager(Long userIdProjectManager, Long userId, Long projectId, RequestInfo requestInfo) {
+        if (userIdProjectManager == null || projectId == null || userId == null) {
             log.error("IDs não fornecidos: IDs solicitados: IDs de usuário e projeto");
             throw new IllegalArgumentException("Ids não fornecidos: Ids solicitados: Ids de usuário e projeto");
         }
 
-        log.info("Definindo usuário com ID {} como gerente do projeto com ID {}", userId, projectId);
+        log.info("Definindo usuário com ID {} como gerente do projeto com ID {}", userIdProjectManager, projectId);
 
-        User userForAdd = getUserById(userId);
+        User userForAdd = getUserById(userIdProjectManager);
+
+        User userExecuteAction = getUserById(userId);
 
         Project projectFilter = getProjectById(projectId);
 
         projectFilter.setGerenteProjeto(userForAdd);
+
+        auditLogService.addAudit(
+                userExecuteAction,
+                "Adicionando usuario como gerente de um projeto ",
+                "Id do usuário adicionado: " + userIdProjectManager + "," + " Id do projeto: " + projectId,
+                "Projeto",
+                requestInfo
+        );
 
         return projectRepository.save(projectFilter);
     }
@@ -514,6 +524,4 @@ public class ProjectService {
                     return new EntityNotFoundException("Projeto não encontrado");
                 });
     }
-
-
 }
