@@ -1,8 +1,6 @@
 package com.api.gerenciadorprojetos.Infra.Security;
 
-import io.jsonwebtoken.Claims;
-import io.jsonwebtoken.ExpiredJwtException;
-import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.*;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -56,6 +54,18 @@ public class SecurityFilter extends OncePerRequestFilter {
             }
         } catch (ExpiredJwtException e) {
             response.sendError(HttpStatus.UNAUTHORIZED.value(), "Token expirado");
+            return;
+        } catch (SignatureException e) {
+            response.sendError(HttpStatus.UNAUTHORIZED.value(), "Assinatura inválida do token");
+            return;
+        } catch (MalformedJwtException e) {
+            response.sendError(HttpStatus.UNAUTHORIZED.value(), "Token malformado");
+            return;
+        } catch (UnsupportedJwtException e) {
+            response.sendError(HttpStatus.UNAUTHORIZED.value(), "Tipo de token não suportado");
+            return;
+        } catch (IllegalArgumentException e) {
+            response.sendError(HttpStatus.UNAUTHORIZED.value(), "Token vazio ou inválido");
             return;
         }
 

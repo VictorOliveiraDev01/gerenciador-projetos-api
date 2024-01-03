@@ -24,7 +24,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -85,13 +87,7 @@ public class TaskService {
 
         log.info("Recuperando tarefa com ID: {}", taskId);
 
-        return taskMapper.toDto(
-                taskRepository.findById(taskId)
-                        .orElseThrow(() -> {
-                            log.info("Tarefa não encontrada. Id fornecido: {}", taskId);
-                            return new EntityNotFoundException("Tarefa não encontrada. Id fornecido: " + taskId);
-                        })
-        );
+        return taskMapper.toDto(getTaskById(taskId));
     }
 
     /**
@@ -106,13 +102,9 @@ public class TaskService {
      * @throws UnauthorizedException  Se o usuário não for o gerente do projeto associado.
      */
     @Transactional
-    public Task addNewTask(Task task, Long userId, Long responsibleId) {
+    public Task addNewTask(Task task, Long userId, Long responsibleId, RequestInfo requestInfo) {
 
-        Project projetoAssociado = projectRepository.findById(task.getProjeto().getId())
-                .orElseThrow(() -> {
-                    log.info("Projeto não encontrado.");
-                    return new EntityNotFoundException("Projeto não encontrado");
-                });
+        Project projetoAssociado = getProjectById(task.getProjeto().getId());
 
         if (!projetoAssociado.getGerenteProjeto().getId().equals(userId)) {
             log.info("Usuário não autorizado para criar tarefas neste projeto.");
@@ -126,16 +118,20 @@ public class TaskService {
 
         validateTask(task);
 
-        User usuarioResponsavel = userRepository.findById(responsibleId)
-                .orElseThrow(() -> {
-                    log.info("Usuário responsável não encontrado.");
-                    return new EntityNotFoundException("Usuário responsável não encontrado");
-                });
+        User usuarioResponsavel = getUserById(responsibleId);
+
+        User userExecuteAction = getUserById(userId);
 
         task.setResponsaveis(Set.of(usuarioResponsavel));
 
         // Define o projeto associado à tarefa
         task.setProjeto(projetoAssociado);
+
+        auditLogService.addAudit(userExecuteAction,
+                "Criação de uma nova tarefa no projeto",
+                "Id do projeto: " + projetoAssociado.getId(),
+                "Projeto", requestInfo
+        );
 
         return taskRepository.save(task);
     }
@@ -145,14 +141,17 @@ public class TaskService {
      * Atualiza uma tarefa existente.
      *
      * @param taskId O ID da tarefa a ser atualizada.
+     * @param userId O ID do usuário que está executando a ação
      * @param task   Tarefa com as informações atualizadas.
+     * @param requestInfo Informações do usuário que fez a solicitação.
+     *
      * @return Tarefa atualizada.
      * @throws IllegalArgumentException Se o ID da tarefa fornecido for nulo.
      * @throws EntityNotFoundException  Se a tarefa não for encontrada.
      * @throws TaskValidationException  Se a validação da tarefa falhar.
      */
     @Transactional
-    public Task updateTask(Long taskId, Task task) {
+    public Task updateTask(Long taskId, Long userId, Task task, RequestInfo requestInfo) {
         if (taskId == null) {
             log.error("Id da tarefa não fornecido");
             throw new IllegalArgumentException("Id da tarefa não fornecido");
@@ -160,43 +159,54 @@ public class TaskService {
 
         log.info("Atualizando tarefa com ID: {}", taskId);
 
-        Task tarefaEncontrada = taskRepository.findById(taskId)
-                .orElseThrow(() -> {
-                    log.info("Tarefa não encontrada.");
-                    return new EntityNotFoundException("Tarefa não encontrada");
-                });
+        Task taskToUpdate = getTaskById(taskId);
+
+        User userExecuteAction = getUserById(userId);
+
+        Project project = getProjectById(taskToUpdate.getProjeto().getId());
 
         validateTask(task);
 
-        tarefaEncontrada.setNomeTarefa(task.getNomeTarefa());
-        tarefaEncontrada.setDescricao(task.getDescricao());
-        tarefaEncontrada.setDataInicio(task.getDataInicio());
-        tarefaEncontrada.setDataTerminoPrevista(task.getDataTerminoPrevista());
-        tarefaEncontrada.setProjeto(task.getProjeto());
-        tarefaEncontrada.setPorcentagemConcluida(task.getPorcentagemConcluida());
+        taskToUpdate.setNomeTarefa(task.getNomeTarefa());
+        taskToUpdate.setDescricao(task.getDescricao());
+        taskToUpdate.setDataInicio(task.getDataInicio());
+        taskToUpdate.setDataTerminoPrevista(task.getDataTerminoPrevista());
+        taskToUpdate.setProjeto(task.getProjeto());
+        taskToUpdate.setPorcentagemConcluida(task.getPorcentagemConcluida());
 
         if (task.getPorcentagemConcluida() != null && task.getPorcentagemConcluida() == 100) {
-            tarefaEncontrada.setStatus(StatusTarefa.CONCLUIDA);
-            tarefaEncontrada.setDataConclusao(LocalDateTime.now());
+            taskToUpdate.setStatus(StatusTarefa.CONCLUIDA);
+            taskToUpdate.setDataConclusao(LocalDateTime.now());
         } else {
-            tarefaEncontrada.setStatus(StatusTarefa.EM_ANDAMENTO);
-            tarefaEncontrada.setDataConclusao(null);
+            taskToUpdate.setStatus(StatusTarefa.EM_ANDAMENTO);
+            taskToUpdate.setDataConclusao(null);
         }
 
-        return taskRepository.save(tarefaEncontrada);
+        String detalhesAlteracao = buildDetalhesAlteracao(taskToUpdate, task);
+
+        auditLogService.addAudit(userExecuteAction,
+                "Atualização de uma tarefa de projeto existente. Id da tarefa: " + taskId + ", Id do projeto a qual a tarefa pertence: " + project.getId(),
+                "Campos Alterados: " + detalhesAlteracao,
+                "Tarefa",
+                requestInfo
+        );
+
+        return taskRepository.save(taskToUpdate);
     }
 
     /**
      * Adiciona usuários responsáveis a uma tarefa.
      *
      * @param taskId  O ID da tarefa.
+     * @param userId  O ID do usuário que está executando a ação
      * @param userIds Lista de IDs de usuários a serem associados à tarefa.
+     * @param requestInfo Informações sobre a requisição (Para armazenamento no audit)
      * @return Tarefa atualizada.
      * @throws IllegalArgumentException Se o ID da tarefa ou a lista de IDs de usuário não forem fornecidos.
      * @throws EntityNotFoundException  Se a tarefa ou algum usuário não for encontrado.
      */
     @Transactional
-    public Task addUsersToTask(Long taskId, List<Long> userIds) {
+    public Task addUsersToTask(Long taskId, Long userId, List<Long> userIds, RequestInfo requestInfo) {
         if (taskId == null || userIds == null || userIds.isEmpty()) {
             log.error("IDs não fornecidos: IDs solicitados: IDs de tarefa e usuários");
             throw new IllegalArgumentException("Ids não fornecidos: Ids solicitados: Ids de tarefa e usuários");
@@ -204,11 +214,9 @@ public class TaskService {
 
         log.info("Associando usuários com IDs {} à tarefa com ID {}", userIds, taskId);
 
-        Task tarefaEncontrada = taskRepository.findById(taskId)
-                .orElseThrow(() -> {
-                    log.info("Tarefa não encontrada.");
-                    return new EntityNotFoundException("Tarefa não encontrada");
-                });
+        Task taskToAddUsers = getTaskById(taskId);
+
+        User userExecuteAction = getUserById(userId);
 
         List<User> usuariosResponsaveis = userRepository.findAllById(userIds);
 
@@ -217,22 +225,32 @@ public class TaskService {
             throw new EntityNotFoundException("Nenhum usuário encontrado para associar à tarefa");
         }
 
-        tarefaEncontrada.getResponsaveis().addAll(usuariosResponsaveis);
+        taskToAddUsers.getResponsaveis().addAll(usuariosResponsaveis);
 
-        return taskRepository.save(tarefaEncontrada);
+        auditLogService.addAudit(
+                userExecuteAction,
+                "Adicionando usuários a tarefa",
+                "Ids dos usuários Adicionados: " + Arrays.toString(userIds.toArray()) + ". Id da Tarefa a qual foram adicionados: " + taskId,
+                "Tarefa",
+                requestInfo
+        );
+
+        return taskRepository.save(taskToAddUsers);
     }
 
     /**
      * Remove usuários responsáveis de uma tarefa.
      *
      * @param taskId  O ID da tarefa.
+     * @param userId  O ID do usuário que está executando a ação.
      * @param userIds Lista de IDs de usuários a serem removidos da tarefa.
+     * @param requestInfo Informações sobre a requisição (Para armazenamento no audit).
      * @return Tarefa atualizada.
      * @throws IllegalArgumentException Se o ID da tarefa ou a lista de IDs de usuário não forem fornecidos.
      * @throws EntityNotFoundException  Se a tarefa ou algum usuário não for encontrado.
      */
     @Transactional
-    public Task removeUsersFromTask(Long taskId, List<Long> userIds) {
+    public Task removeUsersFromTask(Long taskId, Long userId, List<Long> userIds, RequestInfo requestInfo) {
         if (taskId == null || userIds == null || userIds.isEmpty()) {
             log.error("IDs não fornecidos: IDs solicitados: IDs de tarefa e usuários");
             throw new IllegalArgumentException("Ids não fornecidos: Ids solicitados: Ids de tarefa e usuários");
@@ -240,11 +258,9 @@ public class TaskService {
 
         log.info("Removendo usuários com IDs {} da tarefa com ID {}", userIds, taskId);
 
-        Task tarefaEncontrada = taskRepository.findById(taskId)
-                .orElseThrow(() -> {
-                    log.info("Tarefa não encontrada.");
-                    return new EntityNotFoundException("Tarefa não encontrada");
-                });
+        Task taskToRemoveUsers = getTaskById(taskId);
+
+        User userExecuteAction = getUserById(userId);
 
         List<User> usuariosResponsaveis = userRepository.findAllById(userIds);
 
@@ -253,10 +269,19 @@ public class TaskService {
             throw new EntityNotFoundException("Nenhum usuário encontrado para remover da tarefa");
         }
 
-        tarefaEncontrada.getResponsaveis().removeAll(usuariosResponsaveis);
+        taskToRemoveUsers.getResponsaveis().removeAll(usuariosResponsaveis);
 
-        return taskRepository.save(tarefaEncontrada);
+        auditLogService.addAudit(
+                userExecuteAction,
+                "Removendo usuários da tarefa",
+                "Ids dos usuários Removidos: " + Arrays.toString(userIds.toArray()) + ". Id da Tarefa a qual foram removidos: " + taskId,
+                "Tarefa",
+                requestInfo
+        );
+
+        return taskRepository.save(taskToRemoveUsers);
     }
+
 
     /**
      * Define uma tarefa como concluída.
@@ -290,82 +315,7 @@ public class TaskService {
         return taskRepository.save(tarefaEncontrada);
     }
 
-    /**
-     * Adiciona um responsável à tarefa.
-     *
-     * @param taskId O ID da tarefa.
-     * @param userIdAdd O ID do usuário a ser adicionado como responsável.
-     * @param userId O ID do usuário que está executando a ação.
-     * @param requestInfo Informações sobre a requisição (Para armazenamento no audit)
-     * @return Tarefa atualizada.
-     * @throws IllegalArgumentException    Se o ID da tarefa ou do usuário não forem fornecidos.
-     * @throws EntityNotFoundException     Se a tarefa ou o usuário não for encontrado.
-     * @throws TaskValidationException      Se a validação da tarefa falhar.
-     */
-    @Transactional
-    public Task addResponsibleToTask(Long taskId, Long userIdAdd, Long userId, RequestInfo requestInfo) {
-        if (taskId == null || userIdAdd == null || userId == null) {
-            log.error("IDs não fornecidos: IDs solicitados: ID de tarefa e usuário");
-            throw new IllegalArgumentException("Ids não fornecidos: Ids solicitados: ID de tarefa e usuário");
-        }
 
-        log.info("Adicionando usuário com ID {} como responsável à tarefa com ID {}", userId, taskId);
-
-        Task tarefa = getTaskById(taskId);
-
-        User usuarioResponsavel = getUserById(userIdAdd);
-
-        User userExecuteAction = getUserById(userId);
-
-        tarefa.getResponsaveis().add(usuarioResponsavel);
-
-        auditLogService.addAudit(
-                userExecuteAction,
-                "Adicionando usuário a tarefa", "Id do usuário Adicionado: " + userIdAdd + ". Id da Tarefa a qual foi adicionado: " + taskId,
-                "Tarefa",
-                requestInfo
-        );
-
-        return taskRepository.save(tarefa);
-    }
-
-    /**
-     * Remove um responsável de uma tarefa.
-     *
-     * @param taskId O ID da tarefa.
-     * @param userIdRemove O ID do usuário a ser removido como responsável.
-     * @param userId O ID do usuário que está executando a ação.
-     * @param requestInfo Informações sobre a requisição (Para armazenamento no audit)
-     * @return Tarefa atualizada.
-     * @throws IllegalArgumentException    Se o ID da tarefa ou do usuário não forem fornecidos.
-     * @throws EntityNotFoundException     Se a tarefa ou o usuário não for encontrado.
-     */
-    @Transactional
-    public Task removeResponsibleFromTask(Long taskId, Long userIdRemove, Long userId, RequestInfo requestInfo) {
-        if (taskId == null || userIdRemove == null || userId == null) {
-            log.error("IDs não fornecidos: IDs solicitados: ID de tarefa e usuário");
-            throw new IllegalArgumentException("Ids não fornecidos: Ids solicitados: ID de tarefa e usuário");
-        }
-
-        log.info("Removendo usuário com ID {} como responsável da tarefa com ID {}", userId, taskId);
-
-        Task tarefa = getTaskById(taskId);
-
-        User usuarioResponsavel = getUserById(userId);
-
-        User userExecuteAction = getUserById(userId);
-
-        tarefa.getResponsaveis().remove(usuarioResponsavel);
-
-        auditLogService.addAudit(
-                userExecuteAction,
-                "Removendo usuário da tarefa", "Id do usuário Removido: " + userIdRemove + ". Id da Tarefa a qual pertencia: " + taskId,
-                "Tarefa",
-                requestInfo
-        );
-
-        return taskRepository.save(tarefa);
-    }
 
     /**
      * Recupera as tarefas de projeto associadas a um usuário específico por um status específico.
@@ -432,7 +382,10 @@ public class TaskService {
     /**
      * Deleta um projeto pelo seu ID.
      *
+     * @param userId O ID do usuário que esta executando a ação
      * @param taskId O ID da tarefa a ser excluída.
+     * @param requestInfo Informações sobre a requisição (Para armazenamento no audit).
+     *
      * @throws IllegalArgumentException Se o ID da tarefa fornecido for nulo.
      * @throws EntityNotFoundException Se a Tarefa não for encontrada para exclusão.
      * @throws RuntimeException Se ocorrer um erro ao deletar a tarefa.
@@ -453,7 +406,7 @@ public class TaskService {
                     userExecuteAction,
                     "Deletando Tarefa de projeto",
                     "Id da tarefa projeto deletada: " + taskId + ". Id do projeto a qual a tarefa pertencia: " + taskToDelete.getProjeto().getId(),
-                    "Projeto",
+                    "Tarefa",
                     requestInfo
             );
         } catch (Exception ex) {
@@ -462,13 +415,13 @@ public class TaskService {
     }
 
     /**
-     * Valida a conclusão de uma tarefa.
+     * Valida uma tarefa.
      *
      * @param task A tarefa a ser validada.
      * @throws TaskValidationException Se a validação da tarefa falhar.
      */
     private void validateTask(Task task) throws TaskValidationException {
-        log.info("Validando conclusão da tarefa: {}", task);
+        log.info("Validando tarefa: {}", task);
 
         Set<ConstraintViolation<Task>> violations = validator.validate(task);
 
@@ -559,5 +512,47 @@ public class TaskService {
                 });
     }
 
+
+
+    /**
+     * Constrói uma mensagem detalhada indicando quais campos foram alterados em uma tarefa (PARA ARMAZENAMENTO EM LOG DE AUDIT).
+     *
+     * @param tarefaAntiga A tarefa antes da atualização.
+     * @param tarefaNova   A tarefa após a atualização.
+     * @return Uma mensagem detalhada das alterações nos campos.
+     */
+    public String buildDetalhesAlteracao(Task tarefaAntiga, Task tarefaNova) {
+        StringBuilder detalhesAlteracao = new StringBuilder("Campos Alterados: ");
+
+        if (!Objects.equals(tarefaAntiga.getNomeTarefa(), tarefaNova.getNomeTarefa())) {
+            detalhesAlteracao.append("Nome da Tarefa: ").append(tarefaNova.getNomeTarefa()).append(", ");
+        }
+        if (!Objects.equals(tarefaAntiga.getDescricao(), tarefaNova.getDescricao())) {
+            detalhesAlteracao.append("Descrição: ").append(tarefaNova.getDescricao()).append(", ");
+        }
+        if (!Objects.equals(tarefaAntiga.getDataInicio(), tarefaNova.getDataInicio())) {
+            detalhesAlteracao.append("Data de Início: ").append(tarefaNova.getDataInicio()).append(", ");
+        }
+        if (!Objects.equals(tarefaAntiga.getDataTerminoPrevista(), tarefaNova.getDataTerminoPrevista())) {
+            detalhesAlteracao.append("Data de Término Prevista: ").append(tarefaNova.getDataTerminoPrevista()).append(", ");
+        }
+        if (!Objects.equals(tarefaAntiga.getStatus(), tarefaNova.getStatus())) {
+            detalhesAlteracao.append("Status: ").append(tarefaNova.getStatus()).append(", ");
+        }
+        if (!Objects.equals(tarefaAntiga.getResponsaveis(), tarefaNova.getResponsaveis())) {
+            detalhesAlteracao.append("Responsáveis: ").append(tarefaNova.getResponsaveis()).append(", ");
+        }
+        if (!Objects.equals(tarefaAntiga.getProjeto(), tarefaNova.getProjeto())) {
+            detalhesAlteracao.append("Projeto: ").append(tarefaNova.getProjeto()).append(", ");
+        }
+        if (!Objects.equals(tarefaAntiga.getDataConclusao(), tarefaNova.getDataConclusao())) {
+            detalhesAlteracao.append("Data de Conclusão: ").append(tarefaNova.getDataConclusao()).append(", ");
+        }
+        if (!Objects.equals(tarefaAntiga.getPorcentagemConcluida(), tarefaNova.getPorcentagemConcluida())) {
+            detalhesAlteracao.append("Porcentagem Concluída: ").append(tarefaNova.getPorcentagemConcluida()).append(", ");
+        }
+
+        return detalhesAlteracao.toString();
+    }
 
 }

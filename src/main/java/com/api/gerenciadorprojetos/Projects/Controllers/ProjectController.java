@@ -84,7 +84,8 @@ public class ProjectController {
     public ResponseEntity<?> addNewProject(
             @ApiParam(value = "ID do usuário", required = true) @PathVariable Long userId,
             @ApiParam(value = "Novo projeto", required = true) @RequestBody Project project,
-            @RequestHeader("Authorization") String token) {
+            @RequestHeader("Authorization") String token)
+    {
         RequestInfo requestInfo = getRequestInfo();
         return ResponseEntity.ok(new Response<>(projectService.addNewProject(project, userId, requestInfo)));
     }
@@ -95,7 +96,8 @@ public class ProjectController {
             @ApiParam(value = "ID do projeto", required = true) @PathVariable Long projectId,
             @ApiParam(value = "ID do usuario que está executando a ação", required = true) @PathVariable Long userId,
             @ApiParam(value = "Projeto atualizado", required = true) @RequestBody Project project,
-            @RequestHeader("Authorization") String token) {
+            @RequestHeader("Authorization") String token)
+    {
         RequestInfo requestInfo = getRequestInfo();
         return ResponseEntity.ok(new Response<>(projectService.updateProject(projectId, userId, project, requestInfo)));
     }
@@ -106,7 +108,8 @@ public class ProjectController {
             @ApiParam(value = "ID do usuário que está executando a ação", required = true) @PathVariable Long userId,
             @ApiParam(value = "ID do usuário que será adicionado ao projeto", required = true) @PathVariable Long userIdAdd,
             @ApiParam(value = "ID do projeto", required = true) @PathVariable Long projectId,
-            @RequestHeader("Authorization") String token) throws Exception {
+            @RequestHeader("Authorization") String token) throws Exception
+    {
         RequestInfo requestInfo = getRequestInfo();
         return ResponseEntity.ok(new Response<>(projectService.addUserToProject(userIdAdd, userId, projectId, requestInfo)));
     }
@@ -117,7 +120,8 @@ public class ProjectController {
             @ApiParam(value = "ID do usuário que está executando a ação", required = true) @PathVariable Long userId,
             @ApiParam(value = "ID do usuário que será removido do projeto", required = true) @PathVariable Long userIdRemove,
             @ApiParam(value = "ID do projeto", required = true) @PathVariable Long projectId,
-            @RequestHeader("Authorization") String token) {
+            @RequestHeader("Authorization") String token)
+    {
         RequestInfo requestInfo = getRequestInfo();
         return ResponseEntity.ok(new Response<>(projectService.removeUserFromProject(userIdRemove, userId, projectId, requestInfo)));
     }
@@ -128,7 +132,8 @@ public class ProjectController {
             @ApiParam(value = "ID do usuário que está executando a ação", required = true) @PathVariable Long userId,
             @ApiParam(value = "ID do usuário (gerente do projeto)", required = true) @PathVariable Long userIdProjectManager,
             @ApiParam(value = "ID do projeto", required = true) @PathVariable Long projectId,
-            @RequestHeader("Authorization") String token) {
+            @RequestHeader("Authorization") String token)
+    {
         RequestInfo requestInfo = getRequestInfo();
         return ResponseEntity.ok(new Response<>(projectService.addProjectManager(userIdProjectManager, userId, projectId, requestInfo)));
     }

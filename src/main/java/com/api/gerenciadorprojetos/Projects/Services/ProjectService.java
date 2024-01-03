@@ -116,6 +116,8 @@ public class ProjectService {
      *
      * @param project Novo projeto a ser adicionado.
      * @param userId  ID do usuário que está criando o projeto / EXECUTANDO A AÇÃO.
+     * @param requestInfo Informações do usuário que fez a solicitação.
+     *
      * @return Projeto recém-criado.
      * @throws UserValidationException     Se a validação do usuário falhar.
      * @throws EntityNotFoundException     Se o usuário não for encontrado.
@@ -146,7 +148,10 @@ public class ProjectService {
      * Atualiza um projeto existente.
      *
      * @param projectId   ID do projeto a ser atualizado.
+     * @param userId ID do usuário que está executando a ação
      * @param project     Projeto com as informações atualizadas.
+     * @param requestInfo Informações do usuário que fez a solicitação.
+     *
      * @return Projeto atualizado.
      * @throws IllegalArgumentException     Se o ID do projeto fornecido for nulo.
      * @throws EntityNotFoundException      Se o projeto não for encontrado.
@@ -188,7 +193,7 @@ public class ProjectService {
         //Adiciona log do audit
         auditLogService.addAudit(userExecuteAction,
                 "Atualização de um projeto existente. Id do projeto: " + projectId,
-                detalhesAlteracao,
+                "Campos Alterados: " + detalhesAlteracao,
                 "Projeto",
                 requestInfo
         );
@@ -202,6 +207,7 @@ public class ProjectService {
      * @param userIdAdd  ID do usuário a ser associado ao projeto.
      * @param userId  ID DO usuário que está realizando a ação
      * @param projectId ID do projeto ao qual o usuário será associado.
+     * @param requestInfo Informações do usuário que fez a solicitação.
      * @return Projeto atualizado.
      * @throws IllegalArgumentException       Se os IDs de usuário e projeto não forem fornecidos.
      * @throws EntityNotFoundException        Se o usuário ou o projeto não forem encontrados.
@@ -247,8 +253,10 @@ public class ProjectService {
     /**
      * Remove um usuário de um projeto.
      *
+     * @param userIdRemove ID do usuário que será removido
      * @param userId    ID do usuário a ser removido do projeto.
      * @param projectId ID do projeto do qual o usuário será removido.
+     * @param requestInfo Informações do usuário que fez a solicitação.
      * @return Projeto atualizado.
      * @throws IllegalArgumentException Se os IDs de usuário e projeto não forem fornecidos.
      * @throws EntityNotFoundException  Se o usuário ou o projeto não forem encontrados.
@@ -291,6 +299,7 @@ public class ProjectService {
      *
      * @param userId    ID do usuário a ser definido como gerente do projeto.
      * @param projectId ID do projeto ao qual o usuário será definido como gerente.
+     * @param requestInfo Informações do usuário que fez a solicitação.
      * @return Projeto atualizado.
      * @throws IllegalArgumentException Se os IDs de usuário e projeto não forem fornecidos.
      * @throws EntityNotFoundException  Se o usuário ou o projeto não forem encontrados.
@@ -378,7 +387,7 @@ public class ProjectService {
      *
      * @param userId      O ID do Usuário que está executando a ação.
      * @param projectId   O ID do projeto a ser excluído.
-     * @param requestInfo Informações da solicitação.
+     * @param requestInfo Informações do usuário que fez a solicitação.
      * @throws IllegalArgumentException   Se o ID do projeto fornecido for nulo.
      * @throws EntityNotFoundException    Se o projeto não for encontrado para exclusão.
      * @throws RuntimeException           Se ocorrer um erro ao deletar o projeto.
