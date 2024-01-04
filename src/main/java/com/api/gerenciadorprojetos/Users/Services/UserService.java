@@ -1,12 +1,13 @@
 package com.api.gerenciadorprojetos.Users.Services;
 
 import com.api.gerenciadorprojetos.Exceptions.UserValidationException;
-import com.api.gerenciadorprojetos.Projects.Entities.Project;
+import com.api.gerenciadorprojetos.Infra.Security.JwtTokenProvider;
 import com.api.gerenciadorprojetos.Projects.Repositories.ProjectRepository;
 import com.api.gerenciadorprojetos.Users.DTO.UserDTO;
 import com.api.gerenciadorprojetos.Users.Entities.User;
 import com.api.gerenciadorprojetos.Users.Mappers.UserMapper;
 import com.api.gerenciadorprojetos.Users.Repositories.UserRepository;
+import com.api.gerenciadorprojetos.Utils.AuthenticationResponse;
 import com.api.gerenciadorprojetos.Utils.EntityServiceUtils;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.validation.ConstraintViolation;
@@ -14,8 +15,10 @@ import jakarta.validation.Validator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import javax.naming.AuthenticationException;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -36,19 +39,28 @@ public class UserService {
     private final UserMapper userMapper;
     private final Validator validator;
     private final EntityServiceUtils entityServiceUtils;
+    private final BCryptPasswordEncoder passwordEncoder;
+    private final JwtTokenProvider jwtTokenProvider;
+    private final AuthenticationResponse authResponseUser;
 
     @Autowired
     public UserService(UserRepository userRepository,
                        ProjectRepository projectRepository,
                        UserMapper userMapper,
                        Validator validator,
-                       EntityServiceUtils entityServiceUtils)
+                       EntityServiceUtils entityServiceUtils,
+                       BCryptPasswordEncoder passwordEncoder,
+                       JwtTokenProvider jwtTokenProvider,
+                       AuthenticationResponse authResponseUser)
     {
         this.userRepository = userRepository;
         this.projectRepository = projectRepository;
         this.userMapper = userMapper;
         this.validator = validator;
         this.entityServiceUtils = entityServiceUtils;
+        this.passwordEncoder = passwordEncoder;
+        this.jwtTokenProvider = jwtTokenProvider;
+        this.authResponseUser = authResponseUser;
     }
 
     /**
@@ -127,6 +139,10 @@ public class UserService {
             throw new Exception("Já existe um usuário cadastrado com este e-mail");
         }
 
+        // Hash
+        String hashedPassword = passwordEncoder.encode(user.getSenha());
+        user.setSenha(hashedPassword);
+
         return userRepository.save(user);
     }
 
@@ -187,6 +203,40 @@ public class UserService {
         } catch (Exception ex) {
             log.error("Erro ao deletar usuário. Causa: {}", ex.getMessage(), ex);
             throw new RuntimeException("Erro ao deletar usuário. Causa: " + ex.getMessage(), ex);
+        }
+    }
+
+
+    /**
+     * Autentica um usuário com base no email e senha fornecidos, gerando um token JWT em caso de sucesso.
+     *
+     * @param email O email do usuário para autenticação.
+     * @param password A senha do usuário para autenticação.
+     * @return Um objeto {@code AuthenticationResponse} contendo o usuário autenticado e o token JWT.
+     * @throws AuthenticationException Se a autenticação falhar devido a senha incorreta.
+     * @throws IllegalArgumentException Se o email ou senha fornecidos forem nulos.
+     */
+    public AuthenticationResponse userAuthentication(String email, String password) throws AuthenticationException {
+        if (email == null || password == null) {
+            log.error("Email ou senha não fornecidos.");
+            throw new IllegalArgumentException("Email ou senha não fornecidos");
+        }
+
+        log.info("Autenticando usuário com email: {}", email);
+
+        User user = userRepository.findUserByEmail(email)
+                .orElseThrow(() -> {
+                    log.info("Usuário não encontrado com email: {}", email);
+                    return new EntityNotFoundException("Usuário não encontrado com email: " + email);
+                });
+
+        if (passwordEncoder.matches(password, user.getSenha())) {
+            String token = jwtTokenProvider.generateToken(email);
+            return new AuthenticationResponse(user, token);
+
+        } else {
+            log.info("Senha incorreta para o usuário com email: {}", email);
+            throw new AuthenticationException("Senha incorreta");
         }
     }
 
