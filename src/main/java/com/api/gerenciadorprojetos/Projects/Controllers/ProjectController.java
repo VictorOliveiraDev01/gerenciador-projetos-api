@@ -143,7 +143,8 @@ public class ProjectController {
     public ResponseEntity<?> deleteProjectById(
             @ApiParam(value = "ID do usuário que está executando a ação", required = true) @PathVariable Long userId,
             @ApiParam(value = "ID do projeto", required = true) @PathVariable Long id,
-            @RequestHeader("Authorization") String token) {
+            @RequestHeader("Authorization") String token)
+    {
         RequestInfo requestInfo = getRequestInfo();
         try {
             projectService.deleteProjectById(userId, id, requestInfo);

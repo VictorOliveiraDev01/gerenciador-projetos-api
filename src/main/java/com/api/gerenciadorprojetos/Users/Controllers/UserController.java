@@ -50,7 +50,9 @@ public class UserController {
     @ApiOperation("Recupera usuários associados a um projeto")
     @GetMapping(value = "/projeto/{projectId}")
     public ResponseEntity<?> findUsersByProject(
-            @ApiParam(value = "ID do projeto", required = true) @PathVariable Long projectId) {
+            @ApiParam(value = "ID do projeto", required = true) @PathVariable Long projectId,
+            @RequestHeader("Authorization") String token)
+    {
         return ResponseEntity.ok(new Response<>(userService.findUsersByProject(projectId)));
     }
 
@@ -65,14 +67,18 @@ public class UserController {
     @PutMapping(value = "/{id}")
     public ResponseEntity<?> updateUser(
             @ApiParam(value = "ID do usuário", required = true) @PathVariable Long id,
-            @ApiParam(value = "Usuário atualizado", required = true) @RequestBody User user) {
+            @ApiParam(value = "Usuário atualizado", required = true) @RequestBody User user,
+            @RequestHeader("Authorization") String token)
+    {
         return ResponseEntity.ok(new Response<>(userService.updateUser(user, id)));
     }
 
     @ApiOperation("Exclui um usuário pelo ID")
     @DeleteMapping(value = "/{id}")
     public ResponseEntity<?> deleteUserById(
-            @ApiParam(value = "ID do usuário", required = true) @PathVariable Long id) {
+            @ApiParam(value = "ID do usuário", required = true) @PathVariable Long id,
+            @RequestHeader("Authorization") String token)
+    {
         try {
             userService.deleteUserById(id);
             return ResponseEntity.status(HttpStatus.NO_CONTENT).body("Usuário excluído com sucesso");

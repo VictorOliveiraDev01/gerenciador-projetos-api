@@ -9,6 +9,7 @@ import com.api.gerenciadorprojetos.Projects.Mappers.ProjectMapper;
 import com.api.gerenciadorprojetos.Projects.Repositories.ProjectRepository;
 import com.api.gerenciadorprojetos.Users.Entities.User;
 import com.api.gerenciadorprojetos.Users.Repositories.UserRepository;
+import com.api.gerenciadorprojetos.Utils.EntityServiceUtils;
 import com.api.gerenciadorprojetos.audit.Services.AuditLogService;
 import com.api.gerenciadorprojetos.config.RequestInfo;
 import jakarta.persistence.EntityNotFoundException;
@@ -45,13 +46,22 @@ public class ProjectService {
     private final ProjectMapper projectMapper;
     private final Validator validator;
 
+    private final EntityServiceUtils entityServiceUtils;
+
     @Autowired
-    public ProjectService(ProjectRepository projectRepository, UserRepository userRepository, AuditLogService auditLogService, ProjectMapper projectMapper, Validator validator) {
+    public ProjectService(ProjectRepository projectRepository,
+                          UserRepository userRepository,
+                          AuditLogService auditLogService,
+                          ProjectMapper projectMapper,
+                          Validator validator,
+                          EntityServiceUtils entityServiceUtils)
+    {
         this.projectRepository = projectRepository;
         this.userRepository = userRepository;
         this.auditLogService = auditLogService;
         this.projectMapper = projectMapper;
         this.validator = validator;
+        this.entityServiceUtils = entityServiceUtils;
     }
 
     /**
@@ -83,7 +93,7 @@ public class ProjectService {
 
         log.info("Recuperando projeto com ID: {}", projectId);
 
-        return projectMapper.toDto(getProjectById(projectId));
+        return projectMapper.toDto(entityServiceUtils.getProjectById(projectId));
     }
 
     /**
@@ -103,7 +113,7 @@ public class ProjectService {
         log.info("Recuperando projetos associados ao usuário com ID: {}", userId);
 
         //Verifica se o usuário existe
-        getUserById(userId);
+        entityServiceUtils.getUserById(userId);
 
         return projectRepository.findProjectsByUser_Id(userId)
                 .stream()
@@ -131,7 +141,7 @@ public class ProjectService {
 
         validateProject(project);
 
-        User userExecuteAction = getUserById(userId);
+        User userExecuteAction = entityServiceUtils.getUserById(userId);
 
         project.setStatus(StatusProjeto.CRIADO);
         project.setPorcentagemConcluida(0);
@@ -167,9 +177,9 @@ public class ProjectService {
 
         log.info("Atualizando projeto com ID: {}", projectId);
 
-        Project projectToUpdate = getProjectById(projectId);
+        Project projectToUpdate = entityServiceUtils.getProjectById(projectId);
 
-        User userExecuteAction = getUserById(userId);
+        User userExecuteAction = entityServiceUtils.getUserById(userId);
 
         validateProject(project);
 
@@ -222,12 +232,12 @@ public class ProjectService {
         log.info("Associando usuário com ID {} ao projeto com ID {}", userIdAdd, projectId);
 
         //Usuário a ser adicionado
-        User userForAdd = getUserById(userIdAdd);
+        User userForAdd = entityServiceUtils.getUserById(userIdAdd);
 
         //Usuário que está executando a ação
-        User userExecuteAction = getUserById(userId);
+        User userExecuteAction = entityServiceUtils.getUserById(userId);
 
-        Project projectFilter = getProjectById(projectId);
+        Project projectFilter = entityServiceUtils.getProjectById(projectId);
 
         List<User> usuariosProjeto = projectFilter.getMembrosProjeto();
 
@@ -270,11 +280,11 @@ public class ProjectService {
 
         log.info("Removendo usuário com ID {} do projeto com ID {}", userId, projectId);
 
-        User userForRemove = getUserById(userIdRemove);
+        User userForRemove = entityServiceUtils.getUserById(userIdRemove);
 
-        User userExecuteAction = getUserById(userId);
+        User userExecuteAction = entityServiceUtils.getUserById(userId);
 
-        Project projectFilter = getProjectById(projectId);
+        Project projectFilter = entityServiceUtils.getProjectById(projectId);
 
         List<User> usuariosProjeto = projectFilter.getMembrosProjeto();
 
@@ -313,11 +323,11 @@ public class ProjectService {
 
         log.info("Definindo usuário com ID {} como gerente do projeto com ID {}", userIdProjectManager, projectId);
 
-        User userForAdd = getUserById(userIdProjectManager);
+        User userForAdd = entityServiceUtils.getUserById(userIdProjectManager);
 
-        User userExecuteAction = getUserById(userId);
+        User userExecuteAction = entityServiceUtils.getUserById(userId);
 
-        Project projectFilter = getProjectById(projectId);
+        Project projectFilter = entityServiceUtils.getProjectById(projectId);
 
         projectFilter.setGerenteProjeto(userForAdd);
 
@@ -373,7 +383,7 @@ public class ProjectService {
         log.info("Recuperando projetos do usuário com ID {} com status {}", userId, status);
 
         //verificando se o usuário existe
-        getUserById(userId);
+        entityServiceUtils.getUserById(userId);
 
         return projectRepository.findProjectsByUser_IdAndStatus(userId, status)
                 .stream()
@@ -398,10 +408,10 @@ public class ProjectService {
             throw new IllegalArgumentException("Id do projeto não fornecido");
         }
 
-        User userExecuteAction = getUserById(userId);
+        User userExecuteAction = entityServiceUtils.getUserById(userId);
 
         try {
-            Project projectToDelete = getProjectById(projectId);
+            Project projectToDelete = entityServiceUtils.getProjectById(projectId);
 
             projectRepository.delete(projectToDelete);
 
@@ -494,43 +504,5 @@ public class ProjectService {
         return detalhesAlteracao.toString();
     }
 
-    /**
-     * Obtém o usuário pelo ID.
-     *
-     * @param userId O ID do usuário a ser recuperado.
-     * @return O objeto User correspondente ao ID fornecido.
-     * @throws IllegalArgumentException Se o ID do usuário não for informado.
-     * @throws EntityNotFoundException Se nenhum usuário for encontrado com o ID fornecido.
-     */
-    private User getUserById(Long userId) {
-        if (userId == null) {
-            throw new IllegalArgumentException("Id de usuário não informado");
-        }
 
-        return userRepository.findById(userId)
-                .orElseThrow(() -> {
-                    log.info("Usuário informado não encontrado. Id fornecido {}", userId);
-                    return new EntityNotFoundException("Usuário não encontrado");
-                });
-    }
-
-    /**
-     * Obtém o projeto pelo ID.
-     *
-     * @param projectId O ID do projeto a ser recuperado.
-     * @return O objeto Project correspondente ao ID fornecido.
-     * @throws IllegalArgumentException Se o ID do projeto não for informado.
-     * @throws EntityNotFoundException Se nenhum projeto for encontrado com o ID fornecido.
-     */
-    private Project getProjectById(Long projectId) {
-        if (projectId == null) {
-            throw new IllegalArgumentException("Id de projeto não informado");
-        }
-
-        return projectRepository.findById(projectId)
-                .orElseThrow(() -> {
-                    log.info("Projeto informado não encontrado. Id fornecido {}", projectId);
-                    return new EntityNotFoundException("Projeto não encontrado");
-                });
-    }
 }

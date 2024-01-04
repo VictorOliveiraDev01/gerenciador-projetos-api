@@ -11,6 +11,7 @@ import com.api.gerenciadorprojetos.Tasks.Mappers.TaskMapper;
 import com.api.gerenciadorprojetos.Tasks.Repositories.TaskRepository;
 import com.api.gerenciadorprojetos.Users.Entities.User;
 import com.api.gerenciadorprojetos.Users.Repositories.UserRepository;
+import com.api.gerenciadorprojetos.Utils.EntityServiceUtils;
 import com.api.gerenciadorprojetos.audit.Services.AuditLogService;
 import com.api.gerenciadorprojetos.config.RequestInfo;
 import jakarta.persistence.EntityNotFoundException;
@@ -31,7 +32,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * Classe de serviço para gerenciar operações relacionadas a tarefas.
+ * Classe de serviço para gerenciar operações relacionadas a tarefas de projeto.
  *
  * @author victor.marcelo
  */
@@ -44,18 +45,27 @@ public class TaskService {
     private final ProjectRepository projectRepository;
     private final UserRepository userRepository;
 
+    private final EntityServiceUtils entityServiceUtils;
     private final AuditLogService auditLogService;
     private final TaskMapper taskMapper;
     private final Validator validator;
 
     @Autowired
-    public TaskService(TaskRepository taskRepository, ProjectRepository projectRepository, UserRepository userRepository, AuditLogService auditLogService, TaskMapper taskMapper, Validator validator) {
+    public TaskService(TaskRepository taskRepository,
+                       ProjectRepository projectRepository,
+                       UserRepository userRepository,
+                       AuditLogService auditLogService,
+                       TaskMapper taskMapper,
+                       Validator validator,
+                       EntityServiceUtils entityServiceUtils)
+    {
         this.taskRepository = taskRepository;
         this.projectRepository = projectRepository;
         this.userRepository = userRepository;
         this.auditLogService = auditLogService;
         this.taskMapper = taskMapper;
         this.validator = validator;
+        this.entityServiceUtils = entityServiceUtils;
     }
 
     /**
@@ -87,7 +97,7 @@ public class TaskService {
 
         log.info("Recuperando tarefa com ID: {}", taskId);
 
-        return taskMapper.toDto(getTaskById(taskId));
+        return taskMapper.toDto(entityServiceUtils.getTaskById(taskId));
     }
 
     /**
@@ -104,7 +114,7 @@ public class TaskService {
     @Transactional
     public Task addNewTask(Task task, Long userId, Long responsibleId, RequestInfo requestInfo) {
 
-        Project projetoAssociado = getProjectById(task.getProjeto().getId());
+        Project projetoAssociado = entityServiceUtils.getProjectById(task.getProjeto().getId());
 
         if (!projetoAssociado.getGerenteProjeto().getId().equals(userId)) {
             log.info("Usuário não autorizado para criar tarefas neste projeto.");
@@ -118,9 +128,9 @@ public class TaskService {
 
         validateTask(task);
 
-        User usuarioResponsavel = getUserById(responsibleId);
+        User usuarioResponsavel = entityServiceUtils.getUserById(responsibleId);
 
-        User userExecuteAction = getUserById(userId);
+        User userExecuteAction = entityServiceUtils.getUserById(userId);
 
         task.setResponsaveis(Set.of(usuarioResponsavel));
 
@@ -159,11 +169,11 @@ public class TaskService {
 
         log.info("Atualizando tarefa com ID: {}", taskId);
 
-        Task taskToUpdate = getTaskById(taskId);
+        Task taskToUpdate = entityServiceUtils.getTaskById(taskId);
 
-        User userExecuteAction = getUserById(userId);
+        User userExecuteAction = entityServiceUtils.getUserById(userId);
 
-        Project project = getProjectById(taskToUpdate.getProjeto().getId());
+        Project project = entityServiceUtils.getProjectById(taskToUpdate.getProjeto().getId());
 
         validateTask(task);
 
@@ -214,9 +224,9 @@ public class TaskService {
 
         log.info("Associando usuários com IDs {} à tarefa com ID {}", userIds, taskId);
 
-        Task taskToAddUsers = getTaskById(taskId);
+        Task taskToAddUsers = entityServiceUtils.getTaskById(taskId);
 
-        User userExecuteAction = getUserById(userId);
+        User userExecuteAction = entityServiceUtils.getUserById(userId);
 
         List<User> usuariosResponsaveis = userRepository.findAllById(userIds);
 
@@ -258,9 +268,9 @@ public class TaskService {
 
         log.info("Removendo usuários com IDs {} da tarefa com ID {}", userIds, taskId);
 
-        Task taskToRemoveUsers = getTaskById(taskId);
+        Task taskToRemoveUsers = entityServiceUtils.getTaskById(taskId);
 
-        User userExecuteAction = getUserById(userId);
+        User userExecuteAction = entityServiceUtils.getUserById(userId);
 
         List<User> usuariosResponsaveis = userRepository.findAllById(userIds);
 
@@ -301,18 +311,14 @@ public class TaskService {
 
         log.info("Marcando tarefa com ID {} como concluída", taskId);
 
-        Task tarefaEncontrada = taskRepository.findById(taskId)
-                .orElseThrow(() -> {
-                    log.info("Tarefa não encontrada.");
-                    return new EntityNotFoundException("Tarefa não encontrada");
-                });
+        Task taskToComplete = entityServiceUtils.getTaskById(taskId);
 
-        validateTask(tarefaEncontrada);
+        validateTask(taskToComplete);
 
-        tarefaEncontrada.setStatus(StatusTarefa.CONCLUIDA);
-        tarefaEncontrada.setDataConclusao(LocalDateTime.now());
+        taskToComplete.setStatus(StatusTarefa.CONCLUIDA);
+        taskToComplete.setDataConclusao(LocalDateTime.now());
 
-        return taskRepository.save(tarefaEncontrada);
+        return taskRepository.save(taskToComplete);
     }
 
 
@@ -341,10 +347,10 @@ public class TaskService {
         log.info("Recuperando tarefas do projeto com ID {}, do usuário com ID {}, com status {}", projectId, userId, status);
 
         //Verifica se usuário existe
-        getProjectById(userId);
+        entityServiceUtils.getProjectById(userId);
 
         //Verifica se o projeto existe
-        getProjectById(projectId);
+        entityServiceUtils.getProjectById(projectId);
 
         return taskRepository.findUserTasksByStatusAndProject(userId, projectId, status)
                 .stream()
@@ -371,7 +377,7 @@ public class TaskService {
         log.info("Recuperando tarefas de projeto associadas ao usuário com ID: {}", userId);
 
         //Verifica se o usuário existe
-        getUserById(userId);
+        entityServiceUtils.getUserById(userId);
 
         return taskRepository.findByUserIdAndProjectId(userId, projectId)
                 .stream()
@@ -396,10 +402,10 @@ public class TaskService {
             throw new IllegalArgumentException("Ids não fornecidos. Ids solicitados: Id da tarefa e Id do usuário");
         }
 
-        User userExecuteAction = getUserById(userId);
+        User userExecuteAction = entityServiceUtils.getUserById(userId);
 
         try {
-            Task taskToDelete = getTaskById(taskId);
+            Task taskToDelete = entityServiceUtils.getTaskById(taskId);
 
             taskRepository.deleteById(taskId);
             auditLogService.addAudit(
@@ -451,67 +457,6 @@ public class TaskService {
             taskRepository.save(task);
         }
     }
-
-    /**
-     * Obtém o usuário pelo ID.
-     *
-     * @param userId O ID do usuário a ser recuperado.
-     * @return O objeto User correspondente ao ID fornecido.
-     * @throws IllegalArgumentException Se o ID do usuário não for informado.
-     * @throws EntityNotFoundException Se nenhum usuário for encontrado com o ID fornecido.
-     */
-    private User getUserById(Long userId) {
-        if (userId == null) {
-            throw new IllegalArgumentException("Id de usuário não informado");
-        }
-
-        return userRepository.findById(userId)
-                .orElseThrow(() -> {
-                    log.info("Usuário informado não encontrado. Id fornecido {}", userId);
-                    return new EntityNotFoundException("Usuário não encontrado");
-                });
-    }
-
-    /**
-     * Obtém o projeto pelo ID.
-     *
-     * @param projectId O ID do projeto a ser recuperado.
-     * @return O objeto Project correspondente ao ID fornecido.
-     * @throws IllegalArgumentException Se o ID do projeto não for informado.
-     * @throws EntityNotFoundException Se nenhum projeto for encontrado com o ID fornecido.
-     */
-    private Project getProjectById(Long projectId) {
-        if (projectId == null) {
-            throw new IllegalArgumentException("Id de projeto não informado");
-        }
-
-        return projectRepository.findById(projectId)
-                .orElseThrow(() -> {
-                    log.info("Projeto informado não encontrado. Id fornecido {}", projectId);
-                    return new EntityNotFoundException("Projeto não encontrado");
-                });
-    }
-
-    /**
-     * Obtém o projeto pelo ID.
-     *
-     * @param taskId O ID da tarefa de projeto a ser recuperada.
-     * @return O objeto Task correspondente ao ID fornecido.
-     * @throws IllegalArgumentException Se o ID da tarefa não for informado.
-     * @throws EntityNotFoundException Se nenhuma tarefa de projeto for encontrada com o ID fornecido.
-     */
-    private Task getTaskById(Long taskId) {
-        if (taskId == null) {
-            throw new IllegalArgumentException("Id de tarefa não informado");
-        }
-
-        return taskRepository.findById(taskId)
-                .orElseThrow(() -> {
-                    log.info("Tarefa informada não encontrada. Id fornecido {}", taskId);
-                    return new EntityNotFoundException("Tarefa não encontrads");
-                });
-    }
-
 
 
     /**

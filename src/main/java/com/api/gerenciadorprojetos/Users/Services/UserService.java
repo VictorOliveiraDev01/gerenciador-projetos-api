@@ -7,6 +7,7 @@ import com.api.gerenciadorprojetos.Users.DTO.UserDTO;
 import com.api.gerenciadorprojetos.Users.Entities.User;
 import com.api.gerenciadorprojetos.Users.Mappers.UserMapper;
 import com.api.gerenciadorprojetos.Users.Repositories.UserRepository;
+import com.api.gerenciadorprojetos.Utils.EntityServiceUtils;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validator;
@@ -34,13 +35,20 @@ public class UserService {
     private final ProjectRepository projectRepository;
     private final UserMapper userMapper;
     private final Validator validator;
+    private final EntityServiceUtils entityServiceUtils;
 
     @Autowired
-    public UserService(UserRepository userRepository, ProjectRepository projectRepository, UserMapper userMapper, Validator validator) {
+    public UserService(UserRepository userRepository,
+                       ProjectRepository projectRepository,
+                       UserMapper userMapper,
+                       Validator validator,
+                       EntityServiceUtils entityServiceUtils)
+    {
         this.userRepository = userRepository;
         this.projectRepository = projectRepository;
         this.userMapper = userMapper;
         this.validator = validator;
+        this.entityServiceUtils = entityServiceUtils;
     }
 
     /**
@@ -72,13 +80,7 @@ public class UserService {
 
         log.info("Recuperando usuário com ID: {}", id);
 
-        return userMapper.toDto(
-                userRepository.findById(id)
-                        .orElseThrow(() -> {
-                            log.info("Usuário não encontrado. Id fornecido: {}", id);
-                            return new EntityNotFoundException("Usuário não encontrado. Id fornecido: " + id);
-                        })
-        );
+        return userMapper.toDto(entityServiceUtils.getUserById(id));
     }
 
     /**
@@ -97,11 +99,7 @@ public class UserService {
 
         log.info("Recuperando usuários do projeto com ID: {}", projectId);
 
-        Project projetoEncontrado = projectRepository.findById(projectId)
-                .orElseThrow(() -> {
-                    log.info("Projeto não encontrado. Id fornecido: {}", projectId);
-                    return new EntityNotFoundException("Projeto não encontrado. Id fornecido: " + projectId);
-                });
+        entityServiceUtils.getProjectById(projectId);
 
         return userRepository.findByProjects_Id(projectId)
                 .stream()
@@ -125,7 +123,7 @@ public class UserService {
         Optional<User> checkEmail = userRepository.findUserByEmail(user.getEmail());
 
         if (checkEmail.isPresent()) {
-            log.info("Já existe um usuário cadastrado com este e-mail.");
+            log.info("E-mail fornecido pelo usuário já em uso");
             throw new Exception("Já existe um usuário cadastrado com este e-mail");
         }
 
@@ -136,33 +134,29 @@ public class UserService {
      * Atualiza um usuário existente no sistema.
      *
      * @param user A entidade usuário com informações atualizadas.
-     * @param id O ID do usuário a ser atualizado.
+     * @param userId O ID do usuário a ser atualizado.
      * @return A entidade usuário atualizada.
      * @throws IllegalArgumentException Se o ID fornecido for nulo.
      * @throws EntityNotFoundException Se nenhum usuário for encontrado com o ID fornecido.
      * @throws UserValidationException Se houver erros de validação nos dados fornecidos do usuário.
      */
-    public User updateUser(User user, Long id) {
-        if (id == null) {
+    public User updateUser(User user, Long userId) {
+        if (userId == null) {
             log.error("ID de usuário não fornecido.");
             throw new IllegalArgumentException("Id de usuário não fornecido");
         }
 
-        log.info("Atualizando usuário com ID: {}", id);
+        log.info("Atualizando usuário com ID: {}", userId);
 
-        User usuarioEncontrado = userRepository.findById(id)
-                .orElseThrow(() -> {
-                    log.info("Usuário não encontrado. Id fornecido: {}", id);
-                    return new EntityNotFoundException("Usuário não encontrado. Id fornecido: " + id);
-                });
+        User userToUpdate = entityServiceUtils.getUserById(userId);
 
         validateUser(user);
 
-        usuarioEncontrado.setNome(user.getNome());
-        usuarioEncontrado.setEmail(user.getEmail());
-        usuarioEncontrado.setSenha(user.getSenha());
+        userToUpdate.setNome(user.getNome());
+        userToUpdate.setEmail(user.getEmail());
+        userToUpdate.setSenha(user.getSenha());
 
-        return userRepository.save(usuarioEncontrado);
+        return userRepository.save(userToUpdate);
     }
 
     /**
