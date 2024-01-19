@@ -2,16 +2,16 @@ package com.api.gerenciadorprojetos.Users.Services;
 
 import com.api.gerenciadorprojetos.Exceptions.UserValidationException;
 import com.api.gerenciadorprojetos.Infra.Security.JwtTokenProvider;
-import com.api.gerenciadorprojetos.Projects.Repositories.ProjectRepository;
+import com.api.gerenciadorprojetos.Projects.Repositories.ProjetoJpaRepository;
 import com.api.gerenciadorprojetos.Users.DTO.UserDTO;
 import com.api.gerenciadorprojetos.Users.Entities.User;
-import com.api.gerenciadorprojetos.Users.Mappers.UserMapper;
 import com.api.gerenciadorprojetos.Users.Repositories.UserRepository;
 import com.api.gerenciadorprojetos.Utils.AuthenticationResponse;
 import com.api.gerenciadorprojetos.Utils.EntityServiceUtils;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validator;
+import org.modelmapper.ModelMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -35,8 +35,8 @@ public class UserService {
     private static final Logger log = LoggerFactory.getLogger(UserService.class);
 
     private final UserRepository userRepository;
-    private final ProjectRepository projectRepository;
-    private final UserMapper userMapper;
+    private final ProjetoJpaRepository projectRepository;
+    private final ModelMapper modelMapper;
     private final Validator validator;
     private final EntityServiceUtils entityServiceUtils;
     private final BCryptPasswordEncoder passwordEncoder;
@@ -45,8 +45,8 @@ public class UserService {
 
     @Autowired
     public UserService(UserRepository userRepository,
-                       ProjectRepository projectRepository,
-                       UserMapper userMapper,
+                       ProjetoJpaRepository projectRepository,
+                       ModelMapper modelMapper,
                        Validator validator,
                        EntityServiceUtils entityServiceUtils,
                        BCryptPasswordEncoder passwordEncoder,
@@ -55,7 +55,7 @@ public class UserService {
     {
         this.userRepository = userRepository;
         this.projectRepository = projectRepository;
-        this.userMapper = userMapper;
+        this.modelMapper = modelMapper;
         this.validator = validator;
         this.entityServiceUtils = entityServiceUtils;
         this.passwordEncoder = passwordEncoder;
@@ -72,7 +72,7 @@ public class UserService {
         log.info("Recuperando todos os usuários.");
         return userRepository.findAll()
                 .stream()
-                .map(userMapper::toDto)
+                .map(user -> modelMapper.map(user, UserDTO.class))
                 .collect(Collectors.toList());
     }
 
@@ -92,7 +92,7 @@ public class UserService {
 
         log.info("Recuperando usuário com ID: {}", id);
 
-        return userMapper.toDto(entityServiceUtils.getUserById(id));
+        return modelMapper.map(entityServiceUtils.getUserById(id), UserDTO.class);
     }
 
     /**
@@ -115,7 +115,7 @@ public class UserService {
 
         return userRepository.findByProjects_Id(projectId)
                 .stream()
-                .map(userMapper::toDto)
+                .map(user -> modelMapper.map(user, UserDTO.class))
                 .collect(Collectors.toList());
     }
 

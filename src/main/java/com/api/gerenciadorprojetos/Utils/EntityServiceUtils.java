@@ -1,7 +1,7 @@
 package com.api.gerenciadorprojetos.Utils;
 
 import com.api.gerenciadorprojetos.Projects.Entities.Project;
-import com.api.gerenciadorprojetos.Projects.Repositories.ProjectRepository;
+import com.api.gerenciadorprojetos.Projects.Repositories.ProjetoJpaRepository;
 import com.api.gerenciadorprojetos.Tasks.Entities.Task;
 import com.api.gerenciadorprojetos.Tasks.Repositories.TaskRepository;
 import com.api.gerenciadorprojetos.Users.Entities.User;
@@ -22,13 +22,13 @@ public class EntityServiceUtils {
 
     private final UserRepository userRepository;
 
-    private final ProjectRepository projectRepository;
+    private final ProjetoJpaRepository projectRepository;
 
     private final TaskRepository taskRepository;
 
     private final Logger log = LoggerFactory.getLogger(EntityServiceUtils.class);
     @Autowired
-    public EntityServiceUtils(UserRepository userRepository, ProjectRepository projectRepository, TaskRepository taskRepository){
+    public EntityServiceUtils(UserRepository userRepository, ProjetoJpaRepository projectRepository, TaskRepository taskRepository){
         this.userRepository = userRepository;
         this.projectRepository = projectRepository;
         this.taskRepository = taskRepository;

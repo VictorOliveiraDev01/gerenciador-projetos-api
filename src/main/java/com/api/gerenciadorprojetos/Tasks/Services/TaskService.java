@@ -3,11 +3,10 @@ package com.api.gerenciadorprojetos.Tasks.Services;
 import com.api.gerenciadorprojetos.Exceptions.TaskValidationException;
 import com.api.gerenciadorprojetos.Exceptions.UnauthorizedException;
 import com.api.gerenciadorprojetos.Projects.Entities.Project;
-import com.api.gerenciadorprojetos.Projects.Repositories.ProjectRepository;
+import com.api.gerenciadorprojetos.Projects.Repositories.ProjetoJpaRepository;
 import com.api.gerenciadorprojetos.Tasks.DTO.TaskDTO;
 import com.api.gerenciadorprojetos.Tasks.Entities.Task;
 import com.api.gerenciadorprojetos.Tasks.Enums.StatusTarefa;
-import com.api.gerenciadorprojetos.Tasks.Mappers.TaskMapper;
 import com.api.gerenciadorprojetos.Tasks.Repositories.TaskRepository;
 import com.api.gerenciadorprojetos.Users.Entities.User;
 import com.api.gerenciadorprojetos.Users.Repositories.UserRepository;
@@ -19,6 +18,7 @@ import jakarta.transaction.Transactional;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validator;
 import org.apache.commons.lang3.EnumUtils;
+import org.modelmapper.ModelMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -42,20 +42,20 @@ public class TaskService {
     private static final Logger log = LoggerFactory.getLogger(TaskService.class);
 
     private final TaskRepository taskRepository;
-    private final ProjectRepository projectRepository;
+    private final ProjetoJpaRepository projectRepository;
     private final UserRepository userRepository;
 
     private final EntityServiceUtils entityServiceUtils;
     private final AuditLogService auditLogService;
-    private final TaskMapper taskMapper;
+    private final ModelMapper modelMapper;
     private final Validator validator;
 
     @Autowired
     public TaskService(TaskRepository taskRepository,
-                       ProjectRepository projectRepository,
+                       ProjetoJpaRepository projectRepository,
                        UserRepository userRepository,
                        AuditLogService auditLogService,
-                       TaskMapper taskMapper,
+                       ModelMapper modelMapper,
                        Validator validator,
                        EntityServiceUtils entityServiceUtils)
     {
@@ -63,7 +63,7 @@ public class TaskService {
         this.projectRepository = projectRepository;
         this.userRepository = userRepository;
         this.auditLogService = auditLogService;
-        this.taskMapper = taskMapper;
+        this.modelMapper = modelMapper;
         this.validator = validator;
         this.entityServiceUtils = entityServiceUtils;
     }
@@ -77,7 +77,7 @@ public class TaskService {
         log.info("Listando todas as tarefas.");
         return taskRepository.findAll()
                 .stream()
-                .map(taskMapper::toDto)
+                .map(task -> modelMapper.map(task, TaskDTO.class))
                 .collect(Collectors.toList());
     }
 
@@ -97,7 +97,7 @@ public class TaskService {
 
         log.info("Recuperando tarefa com ID: {}", taskId);
 
-        return taskMapper.toDto(entityServiceUtils.getTaskById(taskId));
+        return modelMapper.map(entityServiceUtils.getTaskById(taskId), TaskDTO.class);
     }
 
     /**
@@ -354,7 +354,7 @@ public class TaskService {
 
         return taskRepository.findUserTasksByStatusAndProject(userId, projectId, status)
                 .stream()
-                .map(taskMapper::toDto)
+                .map(task -> modelMapper.map(task, TaskDTO.class))
                 .collect(Collectors.toList());
     }
 
@@ -381,7 +381,7 @@ public class TaskService {
 
         return taskRepository.findByUserIdAndProjectId(userId, projectId)
                 .stream()
-                .map(taskMapper::toDto)
+                .map(task -> modelMapper.map(task, TaskDTO.class))
                 .collect(Collectors.toList());
     }
 

@@ -1,7 +1,7 @@
 package com.api.gerenciadorprojetos.UserPerformance.Services;
 
 import com.api.gerenciadorprojetos.Projects.Enums.StatusProjeto;
-import com.api.gerenciadorprojetos.Projects.Repositories.ProjectRepository;
+import com.api.gerenciadorprojetos.Projects.Repositories.ProjetoJpaRepository;
 import com.api.gerenciadorprojetos.Tasks.Enums.StatusTarefa;
 import com.api.gerenciadorprojetos.Tasks.Repositories.TaskRepository;
 import com.api.gerenciadorprojetos.Users.Repositories.UserRepository;
@@ -16,13 +16,13 @@ import java.util.Optional;
 public class UserPerformanceService {
 
     private final UserRepository userRepository;
-    private final ProjectRepository projectRepository;
+    private final ProjetoJpaRepository projectRepository;
     private final TaskRepository taskRepository;
 
     private static final Logger log = LoggerFactory.getLogger(UserPerformanceService.class);
 
     @Autowired
-    public UserPerformanceService(UserRepository userRepository, ProjectRepository projectRepository, TaskRepository taskRepository) {
+    public UserPerformanceService(UserRepository userRepository, ProjetoJpaRepository projectRepository, TaskRepository taskRepository) {
         this.userRepository = userRepository;
         this.projectRepository = projectRepository;
         this.taskRepository = taskRepository;

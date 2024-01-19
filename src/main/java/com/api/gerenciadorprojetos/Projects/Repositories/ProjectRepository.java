@@ -1,28 +1,36 @@
 package com.api.gerenciadorprojetos.Projects.Repositories;
 
 import com.api.gerenciadorprojetos.Projects.Entities.Project;
-import com.api.gerenciadorprojetos.Projects.Enums.StatusProjeto;
-import com.api.gerenciadorprojetos.Tasks.Entities.Task;
-import com.api.gerenciadorprojetos.Tasks.Enums.StatusTarefa;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.query.Param;
+import org.springframework.data.elasticsearch.repository.ElasticsearchRepository;
 import org.springframework.stereotype.Repository;
 
-import java.util.Optional;
+import java.util.List;
+
+/**
+ * Repositório Elasticsearch para gerenciamento de entidades Projeto.
+ * Realiza operações específicas do Elasticsearch para busca e recuperação de projetos.
+ *
+ * @author victor.marcelo
+ */
 
 @Repository
-public interface ProjectRepository extends JpaRepository<Project, Long> {
-    Optional<Project> findProjectsByUser_Id (Long userId);
+public interface ProjectRepository extends ElasticsearchRepository<Project, Long> {
 
-    Optional<Project> findProjectsByStatus(StatusProjeto statusProjeto);
+    /**
+     * Busca projetos pelo termo que contenha o texto especificado.
+     *
+     * @param termo O texto a ser buscado em diferentes campos dos projetos.
+     * @return Uma lista de projetos que correspondem aos critérios de busca.
+     */
+    List<Project> findProjectsByTermoContaining(String termo);
 
-    @Query("SELECT p FROM Project p " +
-            "JOIN p.membrosProjeto u " +
-            "WHERE u.id = :userId AND p.status = :status")
-    Optional<Project> findProjectsByUser_IdAndStatus(
-            @Param("userId") Long userId,
-            @Param("status") StatusProjeto status);
+    /**
+     * Busca projetos onde o usuário é um membro e o termo contém o texto especificado.
+     *
+     * @param userId O ID do usuário para o qual a busca é realizada.
+     * @param termo O texto a ser buscado em diferentes campos dos projetos.
+     * @return Uma lista de projetos que correspondem aos critérios de busca.
+     */
+    List<Project> findByUserIdAndTermoContaining(Long userId, String termo);
 
-    Long countByUser_IdAndStatus(Long userId, StatusProjeto status);
 }

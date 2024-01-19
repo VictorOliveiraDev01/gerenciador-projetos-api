@@ -6,9 +6,8 @@ import com.api.gerenciadorprojetos.Exceptions.UserValidationException;
 import com.api.gerenciadorprojetos.Projects.DTO.ProjectDTO;
 import com.api.gerenciadorprojetos.Projects.Entities.Project;
 import com.api.gerenciadorprojetos.Projects.Enums.StatusProjeto;
-import com.api.gerenciadorprojetos.Projects.Mappers.ProjectMapper;
-import com.api.gerenciadorprojetos.Projects.Repositories.ProjectElasticsearchRepository;
 import com.api.gerenciadorprojetos.Projects.Repositories.ProjectRepository;
+import com.api.gerenciadorprojetos.Projects.Repositories.ProjetoJpaRepository;
 import com.api.gerenciadorprojetos.Users.Entities.User;
 import com.api.gerenciadorprojetos.Users.Repositories.UserRepository;
 import com.api.gerenciadorprojetos.Utils.EntityServiceUtils;
@@ -20,16 +19,15 @@ import jakarta.transaction.Transactional;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validator;
 import org.apache.commons.lang3.EnumUtils;
+import org.modelmapper.ModelMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.crypto.bcrypt.BCrypt;
 import org.springframework.stereotype.Service;
 
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -45,11 +43,11 @@ public class ProjectService {
 
     private static final Logger log = LoggerFactory.getLogger(ProjectService.class);
     private static final int CONCLUIDO_PERCENTAGE = 100;
-    private final ProjectRepository projectRepository;
+    private final ProjetoJpaRepository projectRepository;
     private final UserRepository userRepository;
-    private final ProjectElasticsearchRepository projectElasticsearchRepository;
+    private final ProjectRepository projectElasticsearchRepository;
     private final AuditLogService auditLogService;
-    private final ProjectMapper projectMapper;
+    private final ModelMapper modelMapper;
     private final Validator validator;
 
     private final EntityServiceUtils entityServiceUtils;
@@ -57,11 +55,11 @@ public class ProjectService {
     private final SecurityUtils securityUtils;
 
     @Autowired
-    public ProjectService(ProjectRepository projectRepository,
+    public ProjectService(ProjetoJpaRepository projectRepository,
                           UserRepository userRepository,
-                          ProjectElasticsearchRepository projectElasticsearchRepository,
+                          ProjectRepository projectElasticsearchRepository,
                           AuditLogService auditLogService,
-                          ProjectMapper projectMapper,
+                          ModelMapper modelMapper,
                           Validator validator,
                           EntityServiceUtils entityServiceUtils,
                           SecurityUtils securityUtils)
@@ -70,7 +68,7 @@ public class ProjectService {
         this.userRepository = userRepository;
         this.projectElasticsearchRepository = projectElasticsearchRepository;
         this.auditLogService = auditLogService;
-        this.projectMapper = projectMapper;
+        this.modelMapper = modelMapper;
         this.validator = validator;
         this.entityServiceUtils = entityServiceUtils;
         this.securityUtils = securityUtils;
@@ -85,7 +83,7 @@ public class ProjectService {
         log.info("Listando todos os projetos.");
         return projectRepository.findAll()
                 .stream()
-                .map(projectMapper::toDto)
+                .map(project -> modelMapper.map(project, ProjectDTO.class))
                 .collect(Collectors.toList());
     }
 
@@ -105,7 +103,7 @@ public class ProjectService {
 
         log.info("Recuperando projeto com ID: {}", projectId);
 
-        return projectMapper.toDto(entityServiceUtils.getProjectById(projectId));
+        return modelMapper.map(entityServiceUtils.getProjectById(projectId), ProjectDTO.class);
     }
 
     /**
@@ -121,7 +119,7 @@ public class ProjectService {
         if(userAuthenticated != null) {
             return projectRepository.findProjectsByUser_Id(userAuthenticated.getId())
                     .stream()
-                    .map(projectMapper::toDto)
+                    .map(project -> modelMapper.map(project, ProjectDTO.class))
                     .collect(Collectors.toList());
         }else{
             throw new UnauthorizedException("Usuário não autenticado");
@@ -145,7 +143,7 @@ public class ProjectService {
         if (userAuthenticated != null) {
             return projectElasticsearchRepository.findProjectsByTermoContaining(termo)
                     .stream()
-                    .map(projectMapper::toDto)
+                    .map(project -> modelMapper.map(project, ProjectDTO.class))
                     .collect(Collectors.toList());
         } else {
             throw new UnauthorizedException("Usuário não autenticado");
@@ -169,7 +167,7 @@ public class ProjectService {
         if (userAuthenticated != null) {
             return projectElasticsearchRepository.findByUserIdAndTermoContaining(userAuthenticated.getId(), termo)
                     .stream()
-                    .map(projectMapper::toDto)
+                    .map(project -> modelMapper.map(project, ProjectDTO.class))
                     .collect(Collectors.toList());
         } else {
             throw new UnauthorizedException("Usuário não autenticado");
@@ -410,7 +408,7 @@ public class ProjectService {
         }
         return projectRepository.findProjectsByStatus(status)
                 .stream()
-                .map(projectMapper::toDto)
+                .map(project -> modelMapper.map(project, ProjectDTO.class))
                 .collect(Collectors.toList());
     }
 
@@ -436,7 +434,7 @@ public class ProjectService {
         if(userAuthenticated != null) {
             return projectRepository.findProjectsByUser_IdAndStatus(userAuthenticated.getId(), status)
                     .stream()
-                    .map(projectMapper::toDto)
+                    .map(project -> modelMapper.map(project, ProjectDTO.class))
                     .collect(Collectors.toList());
         }else{
             log.error("Erro so listar os projetos solicitados. Usuário não autenticado");
