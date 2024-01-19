@@ -1,15 +1,18 @@
 package com.api.gerenciadorprojetos.Projects.Services;
 
 import com.api.gerenciadorprojetos.Exceptions.ProjectValidationException;
+import com.api.gerenciadorprojetos.Exceptions.UnauthorizedException;
 import com.api.gerenciadorprojetos.Exceptions.UserValidationException;
 import com.api.gerenciadorprojetos.Projects.DTO.ProjectDTO;
 import com.api.gerenciadorprojetos.Projects.Entities.Project;
 import com.api.gerenciadorprojetos.Projects.Enums.StatusProjeto;
 import com.api.gerenciadorprojetos.Projects.Mappers.ProjectMapper;
+import com.api.gerenciadorprojetos.Projects.Repositories.ProjectElasticsearchRepository;
 import com.api.gerenciadorprojetos.Projects.Repositories.ProjectRepository;
 import com.api.gerenciadorprojetos.Users.Entities.User;
 import com.api.gerenciadorprojetos.Users.Repositories.UserRepository;
 import com.api.gerenciadorprojetos.Utils.EntityServiceUtils;
+import com.api.gerenciadorprojetos.Utils.SecurityUtils;
 import com.api.gerenciadorprojetos.audit.Services.AuditLogService;
 import com.api.gerenciadorprojetos.config.RequestInfo;
 import jakarta.persistence.EntityNotFoundException;
@@ -20,11 +23,13 @@ import org.apache.commons.lang3.EnumUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.crypto.bcrypt.BCrypt;
 import org.springframework.stereotype.Service;
 
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -42,26 +47,33 @@ public class ProjectService {
     private static final int CONCLUIDO_PERCENTAGE = 100;
     private final ProjectRepository projectRepository;
     private final UserRepository userRepository;
+    private final ProjectElasticsearchRepository projectElasticsearchRepository;
     private final AuditLogService auditLogService;
     private final ProjectMapper projectMapper;
     private final Validator validator;
 
     private final EntityServiceUtils entityServiceUtils;
 
+    private final SecurityUtils securityUtils;
+
     @Autowired
     public ProjectService(ProjectRepository projectRepository,
                           UserRepository userRepository,
+                          ProjectElasticsearchRepository projectElasticsearchRepository,
                           AuditLogService auditLogService,
                           ProjectMapper projectMapper,
                           Validator validator,
-                          EntityServiceUtils entityServiceUtils)
+                          EntityServiceUtils entityServiceUtils,
+                          SecurityUtils securityUtils)
     {
         this.projectRepository = projectRepository;
         this.userRepository = userRepository;
+        this.projectElasticsearchRepository = projectElasticsearchRepository;
         this.auditLogService = auditLogService;
         this.projectMapper = projectMapper;
         this.validator = validator;
         this.entityServiceUtils = entityServiceUtils;
+        this.securityUtils = securityUtils;
     }
 
     /**
@@ -99,33 +111,77 @@ public class ProjectService {
     /**
      * Recupera uma lista de projetos associados a um usuário.
      *
-     * @param userId O ID do usuário.
+
      * @return Lista de ProjectDTOs representando os projetos associados ao usuário.
-     * @throws IllegalArgumentException     Se o ID do usuário fornecido for nulo.
-     * @throws EntityNotFoundException      Se o usuário não for encontrado.
      */
-    public List<ProjectDTO> findProjectsByUser(Long userId) {
-        if (userId == null) {
-            log.error("ID do usuário não fornecido.");
-            throw new IllegalArgumentException("Id de usuário não fornecido");
+    public List<ProjectDTO> findProjectsByUser() {
+        User userAuthenticated = securityUtils.getUsuarioLogado();
+        log.info("Recuperando projetos associados ao usuário com ID: {}", userAuthenticated.getId());
+
+        if(userAuthenticated != null) {
+            return projectRepository.findProjectsByUser_Id(userAuthenticated.getId())
+                    .stream()
+                    .map(projectMapper::toDto)
+                    .collect(Collectors.toList());
+        }else{
+            throw new UnauthorizedException("Usuário não autenticado");
         }
-
-        log.info("Recuperando projetos associados ao usuário com ID: {}", userId);
-
-        //Verifica se o usuário existe
-        entityServiceUtils.getUserById(userId);
-
-        return projectRepository.findProjectsByUser_Id(userId)
-                .stream()
-                .map(projectMapper::toDto)
-                .collect(Collectors.toList());
     }
+
+    /**
+     * Busca projetos no Elasticsearch por um termo, retornando uma lista de DTOs de projetos correspondentes.
+     *
+     * @param termo O termo a ser utilizado na busca no Elasticsearch.
+     * @return Uma lista de DTOs de projetos correspondentes ao termo.
+     * @throws IllegalArgumentException Se o termo fornecido for nulo ou vazio.
+     * @throws UnauthorizedException    Se o usuário não estiver autenticado.
+     */
+    public List<ProjectDTO> findProjectsByTermoContaining(String termo) {
+        if (termo == null || termo.isEmpty()) {
+            log.error("Termo não fornecido ou inválido");
+            throw new IllegalArgumentException("Termo não fornecido ou inválido");
+        }
+        User userAuthenticated = securityUtils.getUsuarioLogado();
+        if (userAuthenticated != null) {
+            return projectElasticsearchRepository.findProjectsByTermoContaining(termo)
+                    .stream()
+                    .map(projectMapper::toDto)
+                    .collect(Collectors.toList());
+        } else {
+            throw new UnauthorizedException("Usuário não autenticado");
+        }
+    }
+
+    /**
+     * Busca projetos no Elasticsearch por um termo e o ID do usuário autenticado, retornando uma lista de DTOs de projetos correspondentes.
+     *
+     * @param termo O termo a ser utilizado na busca no Elasticsearch.
+     * @return Uma lista de DTOs de projetos correspondentes ao termo e ID do usuário autenticado.
+     * @throws IllegalArgumentException Se o termo fornecido for nulo ou vazio.
+     * @throws UnauthorizedException    Se o usuário não estiver autenticado.
+     */
+    public List<ProjectDTO> findByUserIdAndTermoContaining(String termo) {
+        if (termo == null || termo.isEmpty()) {
+            log.error("Termo não fornecido ou inválido");
+            throw new IllegalArgumentException("Termo não fornecido ou inválido");
+        }
+        User userAuthenticated = securityUtils.getUsuarioLogado();
+        if (userAuthenticated != null) {
+            return projectElasticsearchRepository.findByUserIdAndTermoContaining(userAuthenticated.getId(), termo)
+                    .stream()
+                    .map(projectMapper::toDto)
+                    .collect(Collectors.toList());
+        } else {
+            throw new UnauthorizedException("Usuário não autenticado");
+        }
+    }
+
+
 
     /**
      * Adiciona um novo projeto.
      *
      * @param project Novo projeto a ser adicionado.
-     * @param userId  ID do usuário que está criando o projeto / EXECUTANDO A AÇÃO.
      * @param requestInfo Informações do usuário que fez a solicitação.
      *
      * @return Projeto recém-criado.
@@ -134,14 +190,15 @@ public class ProjectService {
      * @throws ProjectValidationException  Se a validação do projeto falhar.
      */
     @Transactional
-    public Project addNewProject(Project project, Long userId, RequestInfo requestInfo) {
+    public Project addNewProject(Project project, RequestInfo requestInfo) {
         project.setDataCriacaoProjeto(LocalDateTime.now());
 
         log.info("Adicionando novo projeto: {}", project);
 
         validateProject(project);
 
-        User userExecuteAction = entityServiceUtils.getUserById(userId);
+        //Usuário logado / que está executando a ação de criação do projeto
+        User userExecuteAction = securityUtils.getUsuarioLogado();
 
         project.setStatus(StatusProjeto.CRIADO);
         project.setPorcentagemConcluida(0);
@@ -158,7 +215,6 @@ public class ProjectService {
      * Atualiza um projeto existente.
      *
      * @param projectId   ID do projeto a ser atualizado.
-     * @param userId ID do usuário que está executando a ação
      * @param project     Projeto com as informações atualizadas.
      * @param requestInfo Informações do usuário que fez a solicitação.
      *
@@ -169,7 +225,7 @@ public class ProjectService {
      * @throws ProjectValidationException   Se a validação do projeto falhar.
      */
     @Transactional
-    public Project updateProject(Long projectId, Long userId, Project project, RequestInfo requestInfo) {
+    public Project updateProject(Long projectId, Project project, RequestInfo requestInfo) {
         if (projectId == null) {
             log.error("Id de projeto não fornecido");
             throw new IllegalArgumentException("Id de projeto não fornecido");
@@ -179,7 +235,7 @@ public class ProjectService {
 
         Project projectToUpdate = entityServiceUtils.getProjectById(projectId);
 
-        User userExecuteAction = entityServiceUtils.getUserById(userId);
+        User userExecuteAction = securityUtils.getUsuarioLogado();
 
         validateProject(project);
 
@@ -215,7 +271,6 @@ public class ProjectService {
      * Adiciona um usuário a um projeto.
      *
      * @param userIdAdd  ID do usuário a ser associado ao projeto.
-     * @param userId  ID DO usuário que está realizando a ação
      * @param projectId ID do projeto ao qual o usuário será associado.
      * @param requestInfo Informações do usuário que fez a solicitação.
      * @return Projeto atualizado.
@@ -223,10 +278,10 @@ public class ProjectService {
      * @throws EntityNotFoundException        Se o usuário ou o projeto não forem encontrados.
      */
     @Transactional
-    public Project addUserToProject(Long userIdAdd, Long userId, Long projectId, RequestInfo requestInfo) throws Exception {
-        if (userId == null || projectId == null) {
-            log.error("IDs não fornecidos: IDs solicitados: IDs de usuário e projeto");
-            throw new IllegalArgumentException("Ids não fornecidos: Ids solicitados: Ids de usuário e projeto");
+    public Project addUserToProject(Long userIdAdd, Long projectId, RequestInfo requestInfo) throws Exception {
+        if (projectId == null) {
+            log.error("ID do projeto não fornecido");
+            throw new IllegalArgumentException("ID do projeto não fornecido");
         }
 
         log.info("Associando usuário com ID {} ao projeto com ID {}", userIdAdd, projectId);
@@ -235,7 +290,7 @@ public class ProjectService {
         User userForAdd = entityServiceUtils.getUserById(userIdAdd);
 
         //Usuário que está executando a ação
-        User userExecuteAction = entityServiceUtils.getUserById(userId);
+        User userExecuteAction = securityUtils.getUsuarioLogado();
 
         Project projectFilter = entityServiceUtils.getProjectById(projectId);
 
@@ -264,7 +319,6 @@ public class ProjectService {
      * Remove um usuário de um projeto.
      *
      * @param userIdRemove ID do usuário que será removido
-     * @param userId    ID do usuário a ser removido do projeto.
      * @param projectId ID do projeto do qual o usuário será removido.
      * @param requestInfo Informações do usuário que fez a solicitação.
      * @return Projeto atualizado.
@@ -272,17 +326,17 @@ public class ProjectService {
      * @throws EntityNotFoundException  Se o usuário ou o projeto não forem encontrados.
      */
     @Transactional
-    public Project removeUserFromProject(Long userIdRemove, Long userId, Long projectId, RequestInfo requestInfo) {
-        if (userId == null || projectId == null) {
-            log.error("IDs não fornecidos: IDs solicitados: IDs de usuário e projeto");
-            throw new IllegalArgumentException("Ids não fornecidos: Ids solicitados: Ids de usuário e projeto");
+    public Project removeUserFromProject(Long userIdRemove, Long projectId, RequestInfo requestInfo) {
+        if (projectId == null) {
+            log.error("ID do projeto não fornecido");
+            throw new IllegalArgumentException("ID do projeto não fornecido");
         }
 
-        log.info("Removendo usuário com ID {} do projeto com ID {}", userId, projectId);
+        log.info("Removendo usuário com ID {} do projeto com ID {}", userIdRemove, projectId);
 
         User userForRemove = entityServiceUtils.getUserById(userIdRemove);
 
-        User userExecuteAction = entityServiceUtils.getUserById(userId);
+        User userExecuteAction = securityUtils.getUsuarioLogado();
 
         Project projectFilter = entityServiceUtils.getProjectById(projectId);
 
@@ -307,7 +361,7 @@ public class ProjectService {
     /**
      * Define um usuário como gerente de um projeto.
      *
-     * @param userId    ID do usuário a ser definido como gerente do projeto.
+     * @param userIdProjectManager    ID do usuário a ser definido como gerente do projeto.
      * @param projectId ID do projeto ao qual o usuário será definido como gerente.
      * @param requestInfo Informações do usuário que fez a solicitação.
      * @return Projeto atualizado.
@@ -315,8 +369,8 @@ public class ProjectService {
      * @throws EntityNotFoundException  Se o usuário ou o projeto não forem encontrados.
      */
     @Transactional
-    public Project addProjectManager(Long userIdProjectManager, Long userId, Long projectId, RequestInfo requestInfo) {
-        if (userIdProjectManager == null || projectId == null || userId == null) {
+    public Project addProjectManager(Long userIdProjectManager, Long projectId, RequestInfo requestInfo) {
+        if (userIdProjectManager == null || projectId == null) {
             log.error("IDs não fornecidos: IDs solicitados: IDs de usuário e projeto");
             throw new IllegalArgumentException("Ids não fornecidos: Ids solicitados: Ids de usuário e projeto");
         }
@@ -325,7 +379,7 @@ public class ProjectService {
 
         User userForAdd = entityServiceUtils.getUserById(userIdProjectManager);
 
-        User userExecuteAction = entityServiceUtils.getUserById(userId);
+        User userExecuteAction = securityUtils.getUsuarioLogado();
 
         Project projectFilter = entityServiceUtils.getProjectById(projectId);
 
@@ -363,52 +417,50 @@ public class ProjectService {
     /**
      * Filtra projetos associados a um usuário específico por um status específico.
      *
-     * @param userId O ID do usuário para o qual recuperar projetos.
      * @param status O status pelo qual filtrar os projetos do usuário.
      * @return Lista de ProjectDTOs representando projetos filtrados pelo status associados ao usuário.
      * @throws IllegalArgumentException     Se o ID do usuário fornecido for nulo.
      * @throws EntityNotFoundException      Se o usuário não for encontrado.
      */
-    public List<ProjectDTO> findUserProjectsByStatus(Long userId, StatusProjeto status) {
-        if (userId == null) {
-            log.info("Id de usuário não fornecido");
-            throw new IllegalArgumentException("Id do usuário não fornecido");
-        }
+    public List<ProjectDTO> findUserProjectsByStatus(StatusProjeto status) {
+
+        User userAuthenticated = securityUtils.getUsuarioLogado();
 
         if(status == null || !EnumUtils.isValidEnum(StatusProjeto.class, status.name())){
             log.error("Status inválido: {}", status);
             throw new IllegalArgumentException("Status inválido: " + status);
         }
 
-        log.info("Recuperando projetos do usuário com ID {} com status {}", userId, status);
+        log.info("Recuperando projetos do usuário com ID {} com status {}", userAuthenticated.getId(), status);
 
-        //verificando se o usuário existe
-        entityServiceUtils.getUserById(userId);
-
-        return projectRepository.findProjectsByUser_IdAndStatus(userId, status)
-                .stream()
-                .map(projectMapper::toDto)
-                .collect(Collectors.toList());
+        if(userAuthenticated != null) {
+            return projectRepository.findProjectsByUser_IdAndStatus(userAuthenticated.getId(), status)
+                    .stream()
+                    .map(projectMapper::toDto)
+                    .collect(Collectors.toList());
+        }else{
+            log.error("Erro so listar os projetos solicitados. Usuário não autenticado");
+            throw new UnauthorizedException("Usuário não autenticado");
+        }
     }
 
 
     /**
      * Deleta um projeto pelo seu ID.
      *
-     * @param userId      O ID do Usuário que está executando a ação.
      * @param projectId   O ID do projeto a ser excluído.
      * @param requestInfo Informações do usuário que fez a solicitação.
      * @throws IllegalArgumentException   Se o ID do projeto fornecido for nulo.
      * @throws EntityNotFoundException    Se o projeto não for encontrado para exclusão.
      * @throws RuntimeException           Se ocorrer um erro ao deletar o projeto.
      */
-    public void deleteProjectById(Long userId, Long projectId, RequestInfo requestInfo) {
+    public void deleteProjectById(Long projectId, RequestInfo requestInfo) {
         if (projectId == null) {
             log.error("Id do projeto não fornecido. Id fornecido: {} ", projectId);
             throw new IllegalArgumentException("Id do projeto não fornecido");
         }
 
-        User userExecuteAction = entityServiceUtils.getUserById(userId);
+        User userExecuteAction = securityUtils.getUsuarioLogado();
 
         try {
             Project projectToDelete = entityServiceUtils.getProjectById(projectId);
@@ -503,6 +555,5 @@ public class ProjectService {
 
         return detalhesAlteracao.toString();
     }
-
 
 }
