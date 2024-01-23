@@ -1,6 +1,5 @@
 package com.api.gerenciadorprojetos.Infra.Security;
 
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -26,27 +25,20 @@ public class SecurityConfig {
 
     private final UserDetailsService userDetailsService;
     private final JwtTokenProvider jwtTokenProvider;
+    private final SecurityFilter jwtAuthenticationFilter;
 
     /**
      * Construtor da classe SecurityConfig.
      *
      * @param userDetailsService Serviço de detalhes do usuário.
      * @param jwtTokenProvider   Provedor de tokens JWT.
+     * @param jwtAuthenticationFilter Filtro de autenticação JWT.
      */
     @Autowired
-    public SecurityConfig(UserDetailsService userDetailsService, JwtTokenProvider jwtTokenProvider) {
+    public SecurityConfig(UserDetailsService userDetailsService, JwtTokenProvider jwtTokenProvider, SecurityFilter jwtAuthenticationFilter) {
         this.userDetailsService = userDetailsService;
         this.jwtTokenProvider = jwtTokenProvider;
-    }
-
-    /**
-     * Configuração do filtro de autenticação JWT.
-     *
-     * @return Instância do filtro de autenticação JWT.
-     */
-    @Bean
-    public SecurityFilter jwtAuthenticationFilter() {
-        return new SecurityFilter();
+        this.jwtAuthenticationFilter = jwtAuthenticationFilter;
     }
 
     /**
@@ -74,7 +66,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(authorize -> authorize
                         .anyRequest().authenticated()
                 )
-                .addFilterBefore(jwtAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
                 .build();
     }
 }

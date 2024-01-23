@@ -1,4 +1,4 @@
-package com.api.gerenciadorprojetos.Projects.Repositories;
+package com.api.gerenciadorprojetos.Projects.ElasticSearchRepositories;
 
 import com.api.gerenciadorprojetos.Projects.Entities.Project;
 import org.springframework.data.elasticsearch.repository.ElasticsearchRepository;
@@ -14,7 +14,7 @@ import java.util.List;
  */
 
 @Repository
-public interface ProjectRepository extends ElasticsearchRepository<Project, Long> {
+public interface ProjectElasticsearchRepository extends ElasticsearchRepository<Project, Long> {
 
     /**
      * Busca projetos pelo termo que contenha o texto especificado.

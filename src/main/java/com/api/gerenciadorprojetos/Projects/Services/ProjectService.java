@@ -6,7 +6,7 @@ import com.api.gerenciadorprojetos.Exceptions.UserValidationException;
 import com.api.gerenciadorprojetos.Projects.DTO.ProjectDTO;
 import com.api.gerenciadorprojetos.Projects.Entities.Project;
 import com.api.gerenciadorprojetos.Projects.Enums.StatusProjeto;
-import com.api.gerenciadorprojetos.Projects.Repositories.ProjectRepository;
+import com.api.gerenciadorprojetos.Projects.ElasticSearchRepositories.ProjectElasticsearchRepository;
 import com.api.gerenciadorprojetos.Projects.Repositories.ProjetoJpaRepository;
 import com.api.gerenciadorprojetos.Users.Entities.User;
 import com.api.gerenciadorprojetos.Users.Repositories.UserRepository;
@@ -45,7 +45,7 @@ public class ProjectService {
     private static final int CONCLUIDO_PERCENTAGE = 100;
     private final ProjetoJpaRepository projectRepository;
     private final UserRepository userRepository;
-    private final ProjectRepository projectElasticsearchRepository;
+    private final ProjectElasticsearchRepository projectElasticsearchRepository;
     private final AuditLogService auditLogService;
     private final ModelMapper modelMapper;
     private final Validator validator;
@@ -57,7 +57,7 @@ public class ProjectService {
     @Autowired
     public ProjectService(ProjetoJpaRepository projectRepository,
                           UserRepository userRepository,
-                          ProjectRepository projectElasticsearchRepository,
+                          ProjectElasticsearchRepository projectElasticsearchRepository,
                           AuditLogService auditLogService,
                           ModelMapper modelMapper,
                           Validator validator,
